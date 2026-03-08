@@ -74,7 +74,7 @@ class MCPLoader:
             if name in tool_names:
                 return await client.call_tool(name, arguments)
 
-        available = [t.name for t in self.get_tools()]
+        available = [t["name"] for t in self.get_tools()]
         raise ValueError(f"Tool '{name}' not found. Available: {available}")
 
     async def close(self) -> None:
