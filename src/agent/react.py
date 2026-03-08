@@ -2,7 +2,7 @@
 
 import re
 import json
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Any
 from .factory import Agent
 from ..llm.base import LLMProvider
 from ..mcp.loader import MCPLoader
@@ -197,6 +197,11 @@ Important:
             if action is None:
                 if verbose:
                     print("\nCould not parse action, asking LLM to clarify...")
+                # Add assistant response before error message
+                messages.append({
+                    "role": "assistant",
+                    "content": response
+                })
                 messages.append({
                     "role": "user",
                     "content": "Please follow the required format with Action: and Action Input:"
@@ -245,6 +250,11 @@ Important:
                     if verbose:
                         print(f"\n{error_msg}")
 
+                    # Add assistant response before error message
+                    messages.append({
+                        "role": "assistant",
+                        "content": response
+                    })
                     messages.append({
                         "role": "user",
                         "content": error_msg
@@ -254,6 +264,11 @@ Important:
                 if verbose:
                     print(f"\n{error_msg}")
 
+                # Add assistant response before error message
+                messages.append({
+                    "role": "assistant",
+                    "content": response
+                })
                 messages.append({
                     "role": "user",
                     "content": error_msg
