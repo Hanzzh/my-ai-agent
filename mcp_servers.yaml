@@ -1,9 +1,10 @@
 # MCP Servers Configuration
+# Note: Update paths below to match your local environment
 servers:
   - name: weather
     command: python
     args:
-      - "/home/han/Project/ai-learning-script/tools/simple_mcp_server.py"
+      - "../ai-learning-script/tools/simple_mcp_server.py"
 
   # Uncomment to enable filesystem MCP server
   # - name: filesystem
