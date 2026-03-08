@@ -65,7 +65,7 @@ async def test_run_agent_full_flow(temp_config_file, temp_mcp_config_file):
     """Test full agent execution flow from config to response."""
     from src.app import run_agent
     from src.llm.base import LLMProvider
-    from src.mcp.loader import MCPLoader
+    from src.tool.mcp import MCPLoader
     from src.agent.react import ReActAgent
 
     # Mock the load_config to use our temp files
@@ -136,7 +136,7 @@ async def test_run_agent_with_error_handling(temp_config_file):
 async def test_run_agent_cleanup_on_error(temp_config_file):
     """Test that cleanup happens even when agent execution fails."""
     from src.app import run_agent
-    from src.mcp.loader import MCPLoader
+    from src.tool.mcp import MCPLoader
 
     with patch('src.app.load_config') as mock_load_config:
         mock_config = Mock()
@@ -213,7 +213,7 @@ async def test_agent_factory_creates_correct_agent_type():
     """Test that AgentFactory creates the correct agent type."""
     from src.agent import AgentFactory
     from src.llm.base import LLMProvider
-    from src.mcp.loader import MCPLoader
+    from src.tool.mcp import MCPLoader
 
     mock_llm = Mock(spec=LLMProvider)
     mock_mcp = Mock(spec=MCPLoader)
@@ -236,7 +236,7 @@ def test_agent_factory_invalid_type():
     """Test that AgentFactory raises error for invalid agent type."""
     from src.agent import AgentFactory
     from src.llm.base import LLMProvider
-    from src.mcp.loader import MCPLoader
+    from src.tool.mcp import MCPLoader
 
     mock_llm = Mock(spec=LLMProvider)
     mock_mcp = Mock(spec=MCPLoader)
@@ -318,7 +318,7 @@ async def test_react_agent_execution_flow():
     """Test complete ReAct agent execution with mock LLM and MCP."""
     from src.agent.react import ReActAgent
     from src.llm.base import LLMProvider
-    from src.mcp.loader import MCPLoader
+    from src.tool.mcp import MCPLoader
 
     # Create mock LLM
     class MockLLM(LLMProvider):
@@ -355,7 +355,7 @@ async def test_tool_calling_integration():
     """Test integration of tool calling through the full stack."""
     from src.agent.react import ReActAgent
     from src.llm.base import LLMProvider
-    from src.mcp.loader import MCPLoader
+    from src.tool.mcp import MCPLoader
 
     # Create mock LLM that uses a tool
     class ToolUsingLLM(LLMProvider):
@@ -436,3 +436,179 @@ def test_configuration_models():
     assert agent_config.mcp_servers == [mcp_config]
     assert agent_config.agent_type == "react"
     assert agent_config.max_iterations == 10
+
+
+@pytest.mark.asyncio
+async def test_multi_turn_conversation():
+    """Test that multi-turn conversation maintains context across turns."""
+    from src.session import Session
+    from src.llm.base import LLMProvider
+
+    # Track call count and messages
+    call_count = 0
+    captured_messages = []
+
+    class ContextAwareLLM(LLMProvider):
+        def chat(self, messages, **kwargs):
+            nonlocal call_count, captured_messages
+            call_count += 1
+            captured_messages.append(messages)
+
+            if call_count == 1:
+                return "Thought: I know this.\n\nAction: Final Answer\nAction Input: Tokyo."
+            else:
+                # Second call should have history
+                return f"Thought: Based on previous context.\n\nAction: Final Answer\nAction Input: The previous answer was Tokyo."
+
+        def get_model_info(self):
+            return {"name": "mock", "provider": "test"}
+
+    with patch('src.session.session.load_config') as mock_load_config, \
+         patch('src.session.session.OpenAICompatibleProvider') as mock_llm_class, \
+         patch('src.session.session.MCPLoader') as mock_mcp_class, \
+         patch('src.session.session.AgentFactory') as mock_factory:
+
+        # Setup mocks
+        mock_config = Mock()
+        mock_config.llm.api_key = "test-key"
+        mock_config.llm.base_url = "https://test.com"
+        mock_config.llm.model = "test-model"
+        mock_config.agent_type = "react"
+        mock_config.max_iterations = 5
+        mock_config.mcp_servers = []
+        mock_load_config.return_value = mock_config
+
+        mock_llm = ContextAwareLLM()
+        mock_llm_class.return_value = mock_llm
+
+        mock_mcp_instance = Mock()
+        mock_mcp_instance.load_all = AsyncMock()
+        mock_mcp_instance.close_all = AsyncMock()
+        mock_mcp_instance.get_all_tools = Mock(return_value={})
+        mock_mcp_class.return_value = mock_mcp_instance
+
+        mock_agent = Mock()
+        mock_agent.initialize = AsyncMock()
+        mock_agent.run = AsyncMock(side_effect=["Tokyo", "The previous answer was Tokyo."])
+        mock_agent.clear_history = Mock()
+        mock_agent.history_length = 0
+        mock_factory.create_agent.return_value = mock_agent
+
+        # Create session
+        session = await Session.create(config_path="test.yaml")
+
+        # First turn
+        result1 = await session.ask("What is the capital of Japan?")
+
+        # Second turn - should have context from first
+        result2 = await session.ask("What was my previous question about?")
+
+        # Cleanup
+        await session.close()
+
+        # Verify both calls were made
+        assert call_count == 0  # LLM not called directly, agent.run was
+        assert mock_agent.run.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_session_mcp_persistence():
+    """Test that MCP connections persist across multiple turns in a session."""
+    from src.session import Session
+
+    with patch('src.session.session.load_config') as mock_load_config, \
+         patch('src.session.session.OpenAICompatibleProvider') as mock_llm_class, \
+         patch('src.session.session.MCPLoader') as mock_mcp_class, \
+         patch('src.session.session.AgentFactory') as mock_factory:
+
+        # Setup mocks
+        mock_config = Mock()
+        mock_config.llm.api_key = "test-key"
+        mock_config.llm.base_url = "https://test.com"
+        mock_config.llm.model = "test-model"
+        mock_config.agent_type = "react"
+        mock_config.max_iterations = 5
+        mock_config.mcp_servers = []
+        mock_load_config.return_value = mock_config
+
+        mock_llm_class.return_value = Mock()
+
+        mock_mcp_instance = Mock()
+        mock_mcp_instance.load_all = AsyncMock()
+        mock_mcp_instance.close_all = AsyncMock()
+        mock_mcp_instance.get_all_tools = Mock(return_value={})
+        mock_mcp_class.return_value = mock_mcp_instance
+
+        mock_agent = Mock()
+        mock_agent.initialize = AsyncMock()
+        mock_agent.run = AsyncMock(side_effect=["Answer 1", "Answer 2", "Answer 3"])
+        mock_agent.clear_history = Mock()
+        mock_agent.history_length = 0
+        mock_factory.create_agent.return_value = mock_agent
+
+        # Create session
+        session = await Session.create(config_path="test.yaml")
+
+        # MCP should be loaded once at session creation
+        assert mock_mcp_instance.load_all.call_count == 1
+
+        # Multiple turns
+        await session.ask("Question 1")
+        await session.ask("Question 2")
+        await session.ask("Question 3")
+
+        # MCP should still only be loaded once (persisting)
+        assert mock_mcp_instance.load_all.call_count == 1
+
+        # Close session
+        await session.close()
+
+        # MCP should be closed once
+        assert mock_mcp_instance.close_all.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_session_clear_history_in_integration():
+    """Test that clearing history works in a full integration context."""
+    from src.session import Session
+
+    with patch('src.session.session.load_config') as mock_load_config, \
+         patch('src.session.session.OpenAICompatibleProvider') as mock_llm_class, \
+         patch('src.session.session.MCPLoader') as mock_mcp_class, \
+         patch('src.session.session.AgentFactory') as mock_factory:
+
+        # Setup mocks
+        mock_config = Mock()
+        mock_config.llm.api_key = "test-key"
+        mock_config.llm.base_url = "https://test.com"
+        mock_config.llm.model = "test-model"
+        mock_config.agent_type = "react"
+        mock_config.max_iterations = 5
+        mock_config.mcp_servers = []
+        mock_load_config.return_value = mock_config
+
+        mock_llm_class.return_value = Mock()
+
+        mock_mcp_instance = Mock()
+        mock_mcp_instance.load_all = AsyncMock()
+        mock_mcp_instance.close_all = AsyncMock()
+        mock_mcp_instance.get_all_tools = Mock(return_value={})
+        mock_mcp_class.return_value = mock_mcp_instance
+
+        mock_agent = Mock()
+        mock_agent.initialize = AsyncMock()
+        mock_agent.run = AsyncMock(return_value="Answer")
+        mock_agent.clear_history = Mock()
+        mock_agent.history_length = 2  # Simulate some history
+        mock_factory.create_agent.return_value = mock_agent
+
+        # Create session and ask questions
+        session = await Session.create(config_path="test.yaml")
+        await session.ask("Question 1")
+
+        # Clear history
+        session.clear_history()
+        mock_agent.clear_history.assert_called_once()
+
+        # Cleanup
+        await session.close()

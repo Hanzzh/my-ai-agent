@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.app import run_agent
+from src.session import Session
 
 
 def parse_args():
@@ -87,7 +88,12 @@ Examples:
   python main.py --debug "What is the weather today?"
   python main.py
 
-If no question is provided, you will be prompted to enter one.
+Interactive Mode:
+  When no question is provided, starts an interactive chat session.
+
+  Commands:
+    /quit    Exit the session
+    /clear   Clear conversation history
 
 Configuration:
   - Edit config.yaml to configure LLM and agent settings
@@ -103,52 +109,83 @@ For more information, see README.md
     print(help_text)
 
 
+async def interactive_session(debug: bool = False):
+    """
+    Run an interactive chat session.
+
+    Args:
+        debug: Enable debug mode with verbose output
+    """
+    print_banner()
+    print("Chat started. Type /quit to exit, /clear to reset history.\n")
+
+    session = None
+    try:
+        # Create session
+        session = await Session.create(verbose=debug)
+
+        while True:
+            try:
+                question = input("You: ").strip()
+
+                # Handle slash commands
+                if question.lower() == '/quit':
+                    break
+                elif question.lower() == '/clear':
+                    session.clear_history()
+                    print("History cleared.\n")
+                    continue
+                elif not question:
+                    continue
+
+                # Get answer from agent
+                answer = await session.ask(question)
+                print(f"\nAgent: {answer}\n")
+
+            except (EOFError, KeyboardInterrupt):
+                break
+
+    except Exception as e:
+        logger.error(f"Session error: {e}", exc_info=True)
+        print(f"\nError: {e}")
+
+    finally:
+        if session:
+            await session.close()
+        print("Goodbye!")
+
+
 async def main_async():
     """Async main function."""
     try:
         args = parse_args()
         configure_logging(args.debug)
 
-        # Get question from command line args or prompt
-        if args.question is None:
-            # Interactive mode - show banner only in debug mode
-            print_banner() if args.debug else None
-            try:
-                question = input("Enter your question (or 'quit' to exit): ").strip()
-                if question.lower() in ['quit', 'exit', 'q']:
-                    print("Goodbye!")
-                    return
-            except (EOFError, KeyboardInterrupt):
-                print("\nGoodbye!")
-                return
-        else:
+        # Single-shot mode: question provided via command line
+        if args.question:
             question = args.question
             logger.info(f"Question from command line: {question[:50]}...")
 
-        if not question:
-            logger.error("No question provided")
-            print("Error: Please provide a question")
-            return
+            if args.debug:
+                print(f"\nProcessing your question...\n")
 
-        # Run the agent
-        if args.debug:
-            print(f"\nProcessing your question...\n")
+            result = await run_agent(question, verbose=args.debug)
 
-        result = await run_agent(question, verbose=args.debug)
+            print("\n" + "="*60)
+            print("RESULT")
+            print("="*60)
+            print(result)
+            print("="*60 + "\n")
 
-        # Print result
-        print("\n" + "="*60)
-        print("RESULT")
-        print("="*60)
-        print(result)
-        print("="*60 + "\n")
-
-        logger.info("Question processed successfully")
+            logger.info("Question processed successfully")
+        else:
+            # Interactive mode: start chat session
+            await interactive_session(debug=args.debug)
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")
         logger.info("Operation cancelled by user")
-        sys.exit(130)  # Standard exit code for SIGINT
+        sys.exit(130)
 
     except Exception as e:
         logger.error(f"Error: {e}", exc_info=True)
