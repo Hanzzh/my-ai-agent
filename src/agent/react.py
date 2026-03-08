@@ -20,7 +20,8 @@ class ReActAgent(Agent):
         self,
         llm: LLMProvider,
         mcp_loader: MCPLoader,
-        max_iterations: int = 10
+        max_iterations: int = 10,
+        verbose: bool = False
     ):
         """
         Initialize ReAct Agent.
@@ -29,10 +30,12 @@ class ReActAgent(Agent):
             llm: LLM provider for generating responses
             mcp_loader: MCP loader for accessing tools
             max_iterations: Maximum number of Thought-Action-Observation cycles
+            verbose: Whether to print intermediate steps during execution
         """
         self.llm = llm
         self.mcp_loader = mcp_loader
         self.max_iterations = max_iterations
+        self.verbose = verbose
         self.tools: Dict[str, Tuple] = {}  # tool_name -> (client, tool)
 
     async def initialize(self):
@@ -159,17 +162,20 @@ Important:
 
         return None
 
-    async def run(self, question: str, verbose: bool = True) -> str:
+    async def run(self, question: str, verbose: Optional[bool] = None) -> str:
         """
         Run the ReAct loop to answer the question.
 
         Args:
             question: The user's question
-            verbose: Whether to print intermediate steps
+            verbose: Whether to print intermediate steps (defaults to self.verbose)
 
         Returns:
             The final answer
         """
+        # Use instance verbose setting if not explicitly provided
+        if verbose is None:
+            verbose = self.verbose
         # Build conversation history
         messages = [
             {"role": "system", "content": self._get_system_prompt()},

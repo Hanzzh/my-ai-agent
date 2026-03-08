@@ -28,11 +28,18 @@ class AgentFactory:
         agent_type: str,
         llm: LLMProvider,
         mcp_loader: MCPLoader,
+        verbose: bool = False,
         **kwargs
     ) -> Agent:
         """Create an agent instance based on type."""
         if agent_type == "react":
             from .react import ReActAgent
-            return ReActAgent(llm=llm, mcp_loader=mcp_loader, **kwargs)
+            # Pass verbose explicitly to ReActAgent
+            return ReActAgent(
+                llm=llm,
+                mcp_loader=mcp_loader,
+                verbose=verbose,
+                **kwargs
+            )
         else:
             raise ValueError(f"Unknown agent type: {agent_type}")
