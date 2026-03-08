@@ -77,7 +77,7 @@ async def test_run_agent_verbose_false():
 
     with patch('src.app.load_config') as mock_load_config, \
          patch('src.app.OpenAICompatibleProvider') as mock_llm, \
-         patch('src.app.MCPLoader') as mock_mcp:
+         patch('src.app.ToolRegistry') as mock_registry:
 
         # Setup mocks
         mock_config = MagicMock()
@@ -94,11 +94,11 @@ async def test_run_agent_verbose_false():
         mock_llm_instance.chat = MagicMock(return_value="Action: Final Answer\nAction Input: Test answer")
         mock_llm.return_value = mock_llm_instance
 
-        mock_mcp_instance = MagicMock()
-        mock_mcp_instance.load_all = AsyncMock()
-        mock_mcp_instance.get_all_tools.return_value = {}
-        mock_mcp_instance.close_all = AsyncMock()
-        mock_mcp.return_value = mock_mcp_instance
+        mock_registry_instance = MagicMock()
+        mock_registry_instance.load_all = AsyncMock()
+        mock_registry_instance.get_tools.return_value = []
+        mock_registry_instance.close_all = AsyncMock()
+        mock_registry.return_value = mock_registry_instance
 
         # Run with verbose=False
         result = await run_agent("test", verbose=False)
@@ -114,7 +114,7 @@ async def test_run_agent_verbose_true():
 
     with patch('src.app.load_config') as mock_load_config, \
          patch('src.app.OpenAICompatibleProvider') as mock_llm, \
-         patch('src.app.MCPLoader') as mock_mcp:
+         patch('src.app.ToolRegistry') as mock_registry:
 
         # Setup mocks
         mock_config = MagicMock()
@@ -131,11 +131,11 @@ async def test_run_agent_verbose_true():
         mock_llm_instance.chat = MagicMock(return_value="Action: Final Answer\nAction Input: Test answer with verbose")
         mock_llm.return_value = mock_llm_instance
 
-        mock_mcp_instance = MagicMock()
-        mock_mcp_instance.load_all = AsyncMock()
-        mock_mcp_instance.get_all_tools.return_value = {}
-        mock_mcp_instance.close_all = AsyncMock()
-        mock_mcp.return_value = mock_mcp_instance
+        mock_registry_instance = MagicMock()
+        mock_registry_instance.load_all = AsyncMock()
+        mock_registry_instance.get_tools.return_value = []
+        mock_registry_instance.close_all = AsyncMock()
+        mock_registry.return_value = mock_registry_instance
 
         # Run with verbose=True
         result = await run_agent("test", verbose=True)

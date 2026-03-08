@@ -8,6 +8,7 @@ from dataclasses import asdict
 
 from .config import load_config, AgentConfig
 from .llm import OpenAICompatibleProvider
+from .tool import ToolRegistry
 from .tool.mcp import MCPLoader
 from .agent import AgentFactory
 
@@ -42,7 +43,7 @@ async def run_agent(
         Exception: If any step in the orchestration fails
     """
     llm_provider = None
-    mcp_loader = None
+    tool_registry = None
     agent = None
 
     try:
@@ -58,19 +59,21 @@ async def run_agent(
             model=config.llm.model
         )
 
-        # Step 3: Load MCP servers
-        # Convert MCPServerConfig objects to dicts for MCPLoader
+        # Step 3: Setup tool registry with MCP
         mcp_server_dicts = [asdict(server) for server in config.mcp_servers]
         logger.info(f"Loading {len(mcp_server_dicts)} MCP servers")
+
+        tool_registry = ToolRegistry()
         mcp_loader = MCPLoader(mcp_server_dicts)
-        await mcp_loader.load_all()
+        tool_registry.add_source(mcp_loader)
+        await tool_registry.load_all()
 
         # Step 4: Create agent via factory
         logger.info(f"Creating {config.agent_type} agent")
         agent = AgentFactory.create_agent(
             agent_type=config.agent_type,
             llm=llm_provider,
-            mcp_loader=mcp_loader,
+            tool_registry=tool_registry,
             max_iterations=config.max_iterations,
             verbose=verbose
         )
@@ -93,11 +96,11 @@ async def run_agent(
     finally:
         # Step 7: Cleanup resources
         logger.info("Cleaning up resources")
-        if mcp_loader:
+        if tool_registry:
             try:
-                await mcp_loader.close_all()
+                await tool_registry.close_all()
             except Exception as e:
-                logger.warning(f"Error during MCP cleanup: {e}")
+                logger.warning(f"Error during tool cleanup: {e}")
 
 
 async def run_agent_batch(

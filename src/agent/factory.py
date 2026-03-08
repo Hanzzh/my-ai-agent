@@ -1,9 +1,9 @@
 """Agent factory and base class."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from ..llm.base import LLMProvider
-from ..tool.mcp.loader import MCPLoader
+from ..tool.registry import ToolRegistry
 
 
 class Agent(ABC):
@@ -36,17 +36,32 @@ class AgentFactory:
     def create_agent(
         agent_type: str,
         llm: LLMProvider,
-        mcp_loader: MCPLoader,
+        tool_registry: ToolRegistry = None,
+        mcp_loader: Any = None,  # Deprecated, kept for backward compatibility
         verbose: bool = False,
         **kwargs
     ) -> Agent:
-        """Create an agent instance based on type."""
+        """Create an agent instance based on type.
+
+        Args:
+            agent_type: Type of agent to create ("react")
+            llm: LLM provider for generating responses
+            tool_registry: ToolRegistry for accessing tools (preferred)
+            mcp_loader: Deprecated - use tool_registry instead
+            verbose: Whether to print intermediate steps
+            **kwargs: Additional arguments passed to the agent
+        """
+        # Handle deprecated mcp_loader parameter
+        if mcp_loader is not None and tool_registry is None:
+            from ..tool import ToolRegistry
+            tool_registry = ToolRegistry()
+            tool_registry.add_source(mcp_loader)
+
         if agent_type == "react":
             from .react import ReActAgent
-            # Pass verbose explicitly to ReActAgent
             return ReActAgent(
                 llm=llm,
-                mcp_loader=mcp_loader,
+                tool_registry=tool_registry,
                 verbose=verbose,
                 **kwargs
             )

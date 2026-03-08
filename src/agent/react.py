@@ -2,10 +2,11 @@
 
 import re
 import json
-from typing import Dict, Tuple, Optional, Any
+from typing import Dict, Tuple, Optional, Any, List
 from .factory import Agent
 from ..llm.base import LLMProvider
-from ..tool.mcp.loader import MCPLoader
+from ..tool.registry import ToolRegistry
+from ..tool.base import ToolDescription
 
 
 class ReActAgent(Agent):
@@ -19,7 +20,8 @@ class ReActAgent(Agent):
     def __init__(
         self,
         llm: LLMProvider,
-        mcp_loader: MCPLoader,
+        tool_registry: ToolRegistry = None,
+        mcp_loader: Any = None,  # Deprecated
         max_iterations: int = 10,
         verbose: bool = False
     ):
@@ -28,21 +30,29 @@ class ReActAgent(Agent):
 
         Args:
             llm: LLM provider for generating responses
-            mcp_loader: MCP loader for accessing tools
+            tool_registry: Registry for accessing tools
+            mcp_loader: Deprecated, use tool_registry
             max_iterations: Maximum number of Thought-Action-Observation cycles
             verbose: Whether to print intermediate steps during execution
         """
+        # Handle deprecated mcp_loader parameter
+        if mcp_loader is not None and tool_registry is None:
+            from ..tool import ToolRegistry
+            tool_registry = ToolRegistry()
+            tool_registry.add_source(mcp_loader)
+
         self.llm = llm
-        self.mcp_loader = mcp_loader
+        self.tool_registry = tool_registry
         self.max_iterations = max_iterations
         self.verbose = verbose
-        self.tools: Dict[str, Tuple] = {}  # tool_name -> (client, tool)
+        self.tools: Dict[str, ToolDescription] = {}  # tool_name -> tool description
         self.message_history: list = []  # Persistent conversation history
 
     async def initialize(self):
-        """Load tools from MCP servers."""
-        await self.mcp_loader.load_all()
-        self.tools = self.mcp_loader.get_all_tools()
+        """Load tools from registry."""
+        await self.tool_registry.load_all()
+        tool_list = self.tool_registry.get_tools()
+        self.tools = {t["name"]: t for t in tool_list}
 
     def _get_system_prompt(self) -> str:
         """
@@ -97,10 +107,10 @@ Important:
             return "No tools available."
 
         descriptions = []
-        for tool_name, (_, tool) in self.tools.items():
-            desc = f"- {tool_name}: {tool.description}"
-            if tool.inputSchema:
-                desc += f" (input schema: {json.dumps(tool.inputSchema)})"
+        for tool_name, tool in self.tools.items():
+            desc = f"- {tool_name}: {tool['description']}"
+            if tool.get("inputSchema"):
+                desc += f" (input schema: {json.dumps(tool['inputSchema'])})"
             descriptions.append(desc)
 
         return "\n".join(descriptions)
@@ -268,8 +278,7 @@ Important:
             # Execute tool action
             if action in self.tools:
                 try:
-                    client, tool = self.tools[action]
-                    result = await client.call_tool(action, action_input or {})
+                    result = await self.tool_registry.execute_tool(action, action_input or {})
 
                     observation = f"Observation: {result}"
 

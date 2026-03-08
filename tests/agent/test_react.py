@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from src.agent.react import ReActAgent
 from src.llm.base import LLMProvider
-from src.tool.mcp.loader import MCPLoader
+from src.tool.registry import ToolRegistry
 
 
 # Mock LLM Provider for testing
@@ -31,34 +31,38 @@ class MockLLMProvider(LLMProvider):
         return {"name": "mock-model", "provider": "test"}
 
 
+def create_mock_tool_registry(tools=None):
+    """Create a mock ToolRegistry for testing."""
+    tool_registry = Mock(spec=ToolRegistry)
+    tool_registry.load_all = AsyncMock()
+    tool_registry.get_tools = Mock(return_value=tools or [])
+    tool_registry.execute_tool = AsyncMock(return_value="tool result")
+    tool_registry.close_all = AsyncMock()
+    return tool_registry
+
+
 @pytest.mark.asyncio
 async def test_react_agent_initialize():
     """Test ReAct agent initialization."""
-    # Create mock MCP loader
-    mcp_loader = Mock(spec=MCPLoader)
-    mcp_loader.load_all = AsyncMock()
-    mcp_loader.get_all_tools = Mock(return_value={})
+    tool_registry = create_mock_tool_registry()
 
     # Create agent
     llm = MockLLMProvider()
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader, max_iterations=5)
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry, max_iterations=5)
 
     # Initialize
     await agent.initialize()
 
     # Verify
-    mcp_loader.load_all.assert_called_once()
-    mcp_loader.get_all_tools.assert_called_once()
+    tool_registry.load_all.assert_called_once()
+    tool_registry.get_tools.assert_called_once()
     assert agent.tools == {}
 
 
 @pytest.mark.asyncio
 async def test_react_agent_direct_answer():
     """Test ReAct agent providing direct answer without tools."""
-    # Create mock MCP loader
-    mcp_loader = Mock(spec=MCPLoader)
-    mcp_loader.load_all = AsyncMock()
-    mcp_loader.get_all_tools = Mock(return_value={})
+    tool_registry = create_mock_tool_registry()
 
     # Create LLM with direct answer response
     llm = MockLLMProvider(responses=[
@@ -69,7 +73,7 @@ Action Input: The capital of France is Paris."""
     ])
 
     # Create and initialize agent
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader, max_iterations=10)
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry, max_iterations=10)
     await agent.initialize()
 
     # Run
@@ -83,26 +87,10 @@ Action Input: The capital of France is Paris."""
 @pytest.mark.asyncio
 async def test_react_agent_with_tool_call():
     """Test ReAct agent using a tool."""
-    # Create mock MCP client and tool
-    mock_client = Mock()
-    mock_client.call_tool = AsyncMock(return_value="The weather is sunny and 75 degrees.")
-
-    mock_tool = Mock()
-    mock_tool.name = "get_weather"
-    mock_tool.description = "Get current weather for a location"
-    mock_tool.inputSchema = {
-        "type": "object",
-        "properties": {
-            "location": {"type": "string"}
-        }
-    }
-
-    # Create mock MCP loader
-    mcp_loader = Mock(spec=MCPLoader)
-    mcp_loader.load_all = AsyncMock()
-    mcp_loader.get_all_tools = Mock(return_value={
-        "get_weather": (mock_client, mock_tool)
-    })
+    tool_registry = create_mock_tool_registry(tools=[
+        {"name": "get_weather", "description": "Get current weather for a location", "inputSchema": {"type": "object", "properties": {"location": {"type": "string"}}}}
+    ])
+    tool_registry.execute_tool = AsyncMock(return_value="The weather is sunny and 75 degrees.")
 
     # Create LLM with tool-using responses
     llm = MockLLMProvider(responses=[
@@ -117,7 +105,7 @@ Action Input: The weather in San Francisco is sunny and 75 degrees."""
     ])
 
     # Create and initialize agent
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader, max_iterations=10)
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry, max_iterations=10)
     await agent.initialize()
 
     # Run
@@ -126,7 +114,7 @@ Action Input: The weather in San Francisco is sunny and 75 degrees."""
     # Verify
     assert "sunny" in result.lower()
     assert "75" in result
-    mock_client.call_tool.assert_called_once_with(
+    tool_registry.execute_tool.assert_called_once_with(
         "get_weather",
         {"location": "San Francisco"}
     )
@@ -135,10 +123,7 @@ Action Input: The weather in San Francisco is sunny and 75 degrees."""
 @pytest.mark.asyncio
 async def test_react_agent_max_iterations():
     """Test ReAct agent stops at max iterations."""
-    # Create mock MCP loader
-    mcp_loader = Mock(spec=MCPLoader)
-    mcp_loader.load_all = AsyncMock()
-    mcp_loader.get_all_tools = Mock(return_value={})
+    tool_registry = create_mock_tool_registry()
 
     # Create LLM that never gives final answer
     llm = MockLLMProvider(responses=[
@@ -146,7 +131,7 @@ async def test_react_agent_max_iterations():
     ] * 15)  # More than max_iterations
 
     # Create and initialize agent with low max_iterations
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader, max_iterations=3)
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry, max_iterations=3)
     await agent.initialize()
 
     # Run
@@ -161,8 +146,8 @@ def test_react_agent_parse_action():
     """Test parsing action from LLM response."""
     # Create agent (no need to initialize for this test)
     llm = MockLLMProvider()
-    mcp_loader = Mock(spec=MCPLoader)
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader)
+    tool_registry = create_mock_tool_registry()
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry)
 
     # Test parsing tool action with JSON input
     response = """Thought: I need to search for information.
@@ -199,8 +184,8 @@ def test_react_agent_parse_answer():
     """Test parsing final answer from LLM response."""
     # Create agent (no need to initialize for this test)
     llm = MockLLMProvider()
-    mcp_loader = Mock(spec=MCPLoader)
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader)
+    tool_registry = create_mock_tool_registry()
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry)
 
     # Test parsing final answer
     response = """Thought: I have the answer.
@@ -226,24 +211,13 @@ Action Input: {"query": "test"}"""
 
 def test_react_agent_format_tools_description():
     """Test formatting tools description."""
-    # Create mock tools
-    mock_tool1 = Mock()
-    mock_tool1.name = "tool1"
-    mock_tool1.description = "First tool"
-    mock_tool1.inputSchema = {"type": "object"}
-
-    mock_tool2 = Mock()
-    mock_tool2.name = "tool2"
-    mock_tool2.description = "Second tool"
-    mock_tool2.inputSchema = None
-
     # Create agent with tools
     llm = MockLLMProvider()
-    mcp_loader = Mock(spec=MCPLoader)
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader)
+    tool_registry = create_mock_tool_registry()
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry)
     agent.tools = {
-        "tool1": (None, mock_tool1),
-        "tool2": (None, mock_tool2)
+        "tool1": {"name": "tool1", "description": "First tool", "inputSchema": {"type": "object"}},
+        "tool2": {"name": "tool2", "description": "Second tool", "inputSchema": None}
     }
 
     # Get tools description
@@ -258,16 +232,11 @@ def test_react_agent_format_tools_description():
 def test_react_agent_get_system_prompt():
     """Test system prompt generation."""
     # Create agent with tools
-    mock_tool = Mock()
-    mock_tool.name = "test_tool"
-    mock_tool.description = "Test tool description"
-    mock_tool.inputSchema = {"type": "object"}
-
     llm = MockLLMProvider()
-    mcp_loader = Mock(spec=MCPLoader)
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader)
+    tool_registry = create_mock_tool_registry()
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry)
     agent.tools = {
-        "test_tool": (None, mock_tool)
+        "test_tool": {"name": "test_tool", "description": "Test tool description", "inputSchema": {"type": "object"}}
     }
 
     # Get system prompt
@@ -284,10 +253,7 @@ def test_react_agent_get_system_prompt():
 @pytest.mark.asyncio
 async def test_react_agent_invalid_tool():
     """Test ReAct agent handling invalid tool name."""
-    # Create mock MCP loader
-    mcp_loader = Mock(spec=MCPLoader)
-    mcp_loader.load_all = AsyncMock()
-    mcp_loader.get_all_tools = Mock(return_value={})
+    tool_registry = create_mock_tool_registry()
 
     # Create LLM that tries to use non-existent tool
     llm = MockLLMProvider(responses=[
@@ -302,7 +268,7 @@ Action Input: I cannot complete this task."""
     ])
 
     # Create and initialize agent
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader, max_iterations=10)
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry, max_iterations=10)
     await agent.initialize()
 
     # Run
@@ -315,21 +281,10 @@ Action Input: I cannot complete this task."""
 @pytest.mark.asyncio
 async def test_react_agent_tool_error():
     """Test ReAct agent handling tool execution errors."""
-    # Create mock MCP client that raises error
-    mock_client = Mock()
-    mock_client.call_tool = AsyncMock(side_effect=Exception("Tool failed"))
-
-    mock_tool = Mock()
-    mock_tool.name = "failing_tool"
-    mock_tool.description = "A tool that fails"
-    mock_tool.inputSchema = None
-
-    # Create mock MCP loader
-    mcp_loader = Mock(spec=MCPLoader)
-    mcp_loader.load_all = AsyncMock()
-    mcp_loader.get_all_tools = Mock(return_value={
-        "failing_tool": (mock_client, mock_tool)
-    })
+    tool_registry = create_mock_tool_registry(tools=[
+        {"name": "failing_tool", "description": "A tool that fails", "inputSchema": None}
+    ])
+    tool_registry.execute_tool = AsyncMock(side_effect=Exception("Tool failed"))
 
     # Create LLM responses
     llm = MockLLMProvider(responses=[
@@ -340,7 +295,7 @@ Action Input: I encountered an error but here's my best answer."""
     ])
 
     # Create and initialize agent
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader, max_iterations=10)
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry, max_iterations=10)
     await agent.initialize()
 
     # Run
@@ -353,11 +308,9 @@ Action Input: I encountered an error but here's my best answer."""
 @pytest.mark.asyncio
 async def test_react_agent_history_initially_empty():
     """Test that message history is initially empty."""
-    mcp_loader = Mock(spec=MCPLoader)
-    mcp_loader.load_all = AsyncMock()
-    mcp_loader.get_all_tools = Mock(return_value={})
+    tool_registry = create_mock_tool_registry()
 
-    agent = ReActAgent(llm=MockLLMProvider(), mcp_loader=mcp_loader)
+    agent = ReActAgent(llm=MockLLMProvider(), tool_registry=tool_registry)
     await agent.initialize()
 
     assert agent.message_history == []
@@ -367,9 +320,7 @@ async def test_react_agent_history_initially_empty():
 @pytest.mark.asyncio
 async def test_react_agent_history_updated_after_answer():
     """Test that message history is updated after getting an answer."""
-    mcp_loader = Mock(spec=MCPLoader)
-    mcp_loader.load_all = AsyncMock()
-    mcp_loader.get_all_tools = Mock(return_value={})
+    tool_registry = create_mock_tool_registry()
 
     llm = MockLLMProvider(responses=[
         """Thought: I can answer directly.
@@ -377,7 +328,7 @@ Action: Final Answer
 Action Input: The answer is 42."""
     ])
 
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader)
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry)
     await agent.initialize()
 
     result = await agent.run("What is the answer?", verbose=False)
@@ -393,9 +344,7 @@ Action Input: The answer is 42."""
 @pytest.mark.asyncio
 async def test_react_agent_clear_history():
     """Test clearing conversation history."""
-    mcp_loader = Mock(spec=MCPLoader)
-    mcp_loader.load_all = AsyncMock()
-    mcp_loader.get_all_tools = Mock(return_value={})
+    tool_registry = create_mock_tool_registry()
 
     llm = MockLLMProvider(responses=[
         """Action: Final Answer
@@ -404,7 +353,7 @@ Action Input: Answer 1""",
 Action Input: Answer 2"""
     ])
 
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader)
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry)
     await agent.initialize()
 
     # First question
@@ -424,9 +373,7 @@ Action Input: Answer 2"""
 @pytest.mark.asyncio
 async def test_react_agent_multi_turn_context():
     """Test that multi-turn conversation maintains context in messages."""
-    mcp_loader = Mock(spec=MCPLoader)
-    mcp_loader.load_all = AsyncMock()
-    mcp_loader.get_all_tools = Mock(return_value={})
+    tool_registry = create_mock_tool_registry()
 
     llm = MockLLMProvider(responses=[
         """Action: Final Answer
@@ -435,7 +382,7 @@ Action Input: Tokyo""",
 Action Input: The previous answer was Tokyo."""
     ])
 
-    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader)
+    agent = ReActAgent(llm=llm, tool_registry=tool_registry)
     await agent.initialize()
 
     # First question
