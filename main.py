@@ -4,12 +4,32 @@
 import asyncio
 import sys
 import logging
+import argparse
+from typing import Optional
 from pathlib import Path
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.app import run_agent
+
+
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="AI Agent - MCP-Powered Assistant"
+    )
+    parser.add_argument(
+        "question",
+        nargs="?",
+        help="Question or task to process"
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug mode with verbose output"
+    )
+    return parser.parse_args()
 
 
 # Configure logging
@@ -62,16 +82,13 @@ For more information, see README.md
 async def main_async():
     """Async main function."""
     try:
-        # Get question from command line args or prompt
-        if len(sys.argv) > 1:
-            if sys.argv[1] in ['-h', '--help', 'help']:
-                print_help()
-                return
+        # Parse command line arguments
+        args = parse_args()
 
-            question = " ".join(sys.argv[1:])
-            logger.info(f"Question from command line: {question[:50]}...")
-        else:
-            print_banner()
+        # Get question from command line args or prompt
+        if args.question is None:
+            # Interactive mode - show banner only in debug mode
+            print_banner() if args.debug else None
             try:
                 question = input("Enter your question (or 'quit' to exit): ").strip()
                 if question.lower() in ['quit', 'exit', 'q']:
@@ -80,6 +97,9 @@ async def main_async():
             except (EOFError, KeyboardInterrupt):
                 print("\nGoodbye!")
                 return
+        else:
+            question = args.question
+            logger.info(f"Question from command line: {question[:50]}...")
 
         if not question:
             logger.error("No question provided")
