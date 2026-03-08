@@ -32,7 +32,7 @@ def parse_args():
     return parser.parse_args()
 
 
-# Configure logging - will be reconfigured after args parsing
+# Configure logging with initial level - will be adjusted after args parsing
 logging.basicConfig(
     level=logging.INFO,  # Temporary, will be updated
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -41,7 +41,21 @@ logger = logging.getLogger(__name__)
 
 
 def configure_logging(debug_mode: bool):
-    """Configure logging level based on debug mode."""
+    """
+    Configure logging level based on debug mode.
+
+    In debug mode, sets logging level to DEBUG to show all logs.
+    In normal mode, sets logging level to WARNING to suppress info/debug logs
+    while still showing errors and warnings.
+
+    Args:
+        debug_mode: If True, enable verbose DEBUG logging.
+                   If False, use WARNING level for silent operation.
+
+    Note:
+        This modifies the root logger level and affects all loggers
+        throughout the application.
+    """
     log_level = logging.DEBUG if debug_mode else logging.WARNING
     logging.getLogger().setLevel(log_level)
 
