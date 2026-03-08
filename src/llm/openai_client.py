@@ -1,5 +1,6 @@
 """OpenAI-compatible LLM client implementation."""
 
+from typing import List, Dict
 import httpx
 from openai import OpenAI
 from .base import LLMProvider
@@ -19,7 +20,7 @@ class OpenAICompatibleProvider(LLMProvider):
         self._api_key = api_key
         self._base_url = base_url
 
-    def chat(self, messages, temperature: float = 0.7) -> str:
+    def chat(self, messages: List[Dict], temperature: float = 0.7) -> str:
         """Send chat completion request."""
         response = self.client.chat.completions.create(
             model=self.model,
@@ -28,7 +29,7 @@ class OpenAICompatibleProvider(LLMProvider):
         )
         return response.choices[0].message.content
 
-    def get_model_info(self):
+    def get_model_info(self) -> Dict:
         """Return model information."""
         return {
             "name": self.model,
