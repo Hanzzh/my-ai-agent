@@ -27,26 +27,17 @@ async def test_mcp_loader_init():
 async def test_mcp_loader_load_all_and_get_tools():
     """Test MCP loader connects to all servers and collects tools."""
     from src.mcp.loader import MCPLoader
+    from src.mcp.client import MCPClient
 
     server_configs = [
         {"command": "python", "args": ["server1.py"]},
         {"command": "node", "args": ["server2.js"]}
     ]
 
-    with patch('src.mcp.client.stdio_client') as mock_stdio_client, \
-         patch('src.mcp.client.ClientSession') as mock_session_class:
+    # We'll mock at the create_mcp_session level since that's what the client uses now
+    with patch('src.mcp.client.create_mcp_session') as mock_create_session:
 
-        # Setup mocks for both servers
-        mock_stdio_context = AsyncMock()
-        mock_stdio_client.return_value = mock_stdio_context
-        mock_stdio_context.__aenter__.return_value = (MagicMock(), MagicMock())
-
-        mock_session = AsyncMock()
-        mock_session_class.return_value = mock_session
-        mock_session.initialize = AsyncMock()
-        mock_session.list_tools = AsyncMock()
-
-        # Mock different tools for each server
+        # Setup mock to return different tools for each server
         mock_tools_server1 = [
             Tool(name="tool1", description="Tool 1", inputSchema={"type": "object"}),
             Tool(name="tool2", description="Tool 2", inputSchema={"type": "object"})
@@ -55,40 +46,49 @@ async def test_mcp_loader_load_all_and_get_tools():
             Tool(name="tool3", description="Tool 3", inputSchema={"type": "object"})
         ]
 
-        # Make list_tools return different tools on each call
-        mock_session.list_tools.side_effect = [
-            MagicMock(tools=mock_tools_server1),
-            MagicMock(tools=mock_tools_server2)
-        ]
+        # Create a mock async context manager
+        async def mock_session_gen(server_params):
+            mock_session = MagicMock()
+            mock_session.call_tool = AsyncMock()
+            if "server1.py" in str(server_params):
+                yield mock_session, mock_tools_server1
+            else:
+                yield mock_session, mock_tools_server2
 
-        # Create loader and load all
-        loader = MCPLoader(server_configs)
-        await loader.load_all()
+        # Patch the connect method to avoid actual connection
+        async def mock_connect(self):
+            # Simulate connection by setting tools directly
+            if "server1.py" in str(self.server_params):
+                self._session_holder = {"session": MagicMock(), "tools": mock_tools_server1}
+            else:
+                self._session_holder = {"session": MagicMock(), "tools": mock_tools_server2}
 
-        # Verify both servers were connected
-        assert mock_session.initialize.call_count == 2
-        assert mock_session.list_tools.call_count == 2
+        with patch.object(MCPClient, 'connect', mock_connect):
+            # Create loader and load all
+            loader = MCPLoader(server_configs)
+            await loader.load_all()
 
-        # Get all tools
-        tools = loader.get_all_tools()
+            # Get all tools
+            tools = loader.get_all_tools()
 
-        # Verify all tools are collected
-        assert len(tools) == 3
-        assert "tool1" in tools
-        assert "tool2" in tools
-        assert "tool3" in tools
+            # Verify all tools are collected
+            assert len(tools) == 3
+            assert "tool1" in tools
+            assert "tool2" in tools
+            assert "tool3" in tools
 
-        # Verify mapping structure (client, tool)
-        for tool_name, (client, tool) in tools.items():
-            assert isinstance(client, object)  # MCPClient instance
-            assert isinstance(tool, Tool)
-            assert tool.name == tool_name
+            # Verify mapping structure (client, tool)
+            for tool_name, (client, tool) in tools.items():
+                assert isinstance(client, MCPClient)
+                assert isinstance(tool, Tool)
+                assert tool.name == tool_name
 
 
 @pytest.mark.asyncio
 async def test_mcp_loader_close_all():
     """Test MCP loader closes all connections."""
     from src.mcp.loader import MCPLoader
+    from src.mcp.client import MCPClient
 
     server_configs = [
         {"command": "python", "args": ["server1.py"]},
@@ -96,26 +96,29 @@ async def test_mcp_loader_close_all():
         {"command": "python", "args": ["server3.py"]}
     ]
 
-    with patch('src.mcp.client.stdio_client') as mock_stdio_client, \
-         patch('src.mcp.client.ClientSession') as mock_session_class:
+    # Mock connect to set up a fake session holder
+    async def mock_connect(self):
+        self._session_holder = {"session": MagicMock(), "tools": []}
 
-        # Setup mocks
-        mock_stdio_context = AsyncMock()
-        mock_stdio_client.return_value = mock_stdio_context
-        mock_stdio_context.__aenter__.return_value = (MagicMock(), MagicMock())
+    # Mock close to clear the session holder
+    async def mock_close(self):
+        self._session_holder = None
+        self._closing = False
 
-        mock_session = AsyncMock()
-        mock_session_class.return_value = mock_session
-        mock_session.initialize = AsyncMock()
-        mock_session.list_tools = AsyncMock(return_value=MagicMock(tools=[]))
+    with patch.object(MCPClient, 'connect', mock_connect), \
+         patch.object(MCPClient, 'close', mock_close):
 
         # Create loader and connect all
         loader = MCPLoader(server_configs)
         await loader.load_all()
 
+        # Verify all clients were connected
+        for client in loader.clients:
+            assert client._session_holder is not None
+
         # Close all connections
         await loader.close_all()
 
-        # Verify all sessions and stdio contexts were closed
-        assert mock_session.__aexit__.call_count == 3
-        assert mock_stdio_context.__aexit__.call_count == 3
+        # Verify all clients were closed
+        for client in loader.clients:
+            assert client._session_holder is None
