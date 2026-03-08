@@ -1,0 +1,1 @@
+"""MCP tools submodule - will be populated in Task 2."""
