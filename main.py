@@ -127,8 +127,10 @@ async def main_async():
             return
 
         # Run the agent
-        print(f"\nProcessing your question...\n")
-        result = await run_agent(question)
+        if args.debug:
+            print(f"\nProcessing your question...\n")
+
+        result = await run_agent(question, verbose=args.debug)
 
         # Print result
         print("\n" + "="*60)
