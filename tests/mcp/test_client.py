@@ -9,7 +9,7 @@ from mcp.types import Tool
 @pytest.mark.asyncio
 async def test_mcp_client_connect():
     """Test MCP client connects and initializes session."""
-    from src.mcp.client import MCPClient, create_mcp_session
+    from src.tool.mcp.client import MCPClient, create_mcp_session
 
     server_params = {
         "command": "python",
@@ -32,7 +32,7 @@ async def test_mcp_client_connect():
     mock_cm.__aenter__ = AsyncMock(return_value=(MagicMock(), [Tool(name="test_tool", description="A test tool", inputSchema={"type": "object"})]))
     mock_cm.__aexit__ = AsyncMock()
 
-    with patch('src.mcp.client.create_mcp_session') as mock_create_session:
+    with patch('src.tool.mcp.client.create_mcp_session') as mock_create_session:
         # Setup the mock to return our context manager
         mock_create_session.return_value = mock_cm
 
@@ -51,7 +51,7 @@ async def test_mcp_client_connect():
 @pytest.mark.asyncio
 async def test_mcp_client_not_connected():
     """Test that calling tools without connecting raises an error."""
-    from src.mcp.client import MCPClient
+    from src.tool.mcp.client import MCPClient
 
     server_params = {"command": "python"}
 
@@ -65,7 +65,7 @@ async def test_mcp_client_not_connected():
 @pytest.mark.asyncio
 async def test_mcp_client_close():
     """Test MCP client closes connections properly."""
-    from src.mcp.client import MCPClient
+    from src.tool.mcp.client import MCPClient
 
     server_params = {"command": "python"}
 
@@ -82,15 +82,15 @@ async def test_mcp_client_close():
 @pytest.mark.asyncio
 async def test_mcp_create_mcp_session_context_manager():
     """Test that create_mcp_session is a proper async context manager."""
-    from src.mcp.client import create_mcp_session
+    from src.tool.mcp.client import create_mcp_session
 
     server_params = {
         "command": "python",
         "args": ["server.py"],
     }
 
-    with patch('src.mcp.client.stdio_client') as mock_stdio_client, \
-         patch('src.mcp.client.ClientSession') as mock_session_class:
+    with patch('src.tool.mcp.client.stdio_client') as mock_stdio_client, \
+         patch('src.tool.mcp.client.ClientSession') as mock_session_class:
 
         # Setup mocks
         mock_stdio_context = AsyncMock()

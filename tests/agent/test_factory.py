@@ -4,7 +4,7 @@ import pytest
 from src.agent.factory import Agent, AgentFactory
 from src.agent.react import ReActAgent
 from src.llm.base import LLMProvider
-from src.mcp.loader import MCPLoader
+from src.tool.mcp.loader import MCPLoader
 
 
 # Mock LLM Provider for testing

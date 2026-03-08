@@ -8,7 +8,7 @@ from dataclasses import asdict
 
 from .config import load_config, AgentConfig
 from .llm import OpenAICompatibleProvider
-from .mcp import MCPLoader
+from .tool.mcp import MCPLoader
 from .agent import AgentFactory
 
 logger = logging.getLogger(__name__)

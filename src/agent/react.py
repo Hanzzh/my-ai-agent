@@ -5,7 +5,7 @@ import json
 from typing import Dict, Tuple, Optional, Any
 from .factory import Agent
 from ..llm.base import LLMProvider
-from ..mcp.loader import MCPLoader
+from ..tool.mcp.loader import MCPLoader
 
 
 class ReActAgent(Agent):
@@ -37,6 +37,7 @@ class ReActAgent(Agent):
         self.max_iterations = max_iterations
         self.verbose = verbose
         self.tools: Dict[str, Tuple] = {}  # tool_name -> (client, tool)
+        self.message_history: list = []  # Persistent conversation history
 
     async def initialize(self):
         """Load tools from MCP servers."""
@@ -103,6 +104,34 @@ Important:
             descriptions.append(desc)
 
         return "\n".join(descriptions)
+
+    def _build_messages(self, question: str) -> list:
+        """
+        Build message list from history plus new question.
+
+        Args:
+            question: The user's question
+
+        Returns:
+            List of message dictionaries for the LLM
+        """
+        messages = [
+            {"role": "system", "content": self._get_system_prompt()},
+        ]
+        # Add conversation history
+        messages.extend(self.message_history)
+        # Add the new question
+        messages.append({"role": "user", "content": f"Question: {question}"})
+        return messages
+
+    def clear_history(self) -> None:
+        """Clear the conversation history."""
+        self.message_history = []
+
+    @property
+    def history_length(self) -> int:
+        """Number of message exchanges in the conversation."""
+        return len(self.message_history) // 2  # Each exchange is user + assistant
 
     def _parse_action(self, response: str) -> Tuple[Optional[str], Optional[Dict]]:
         """
@@ -176,11 +205,8 @@ Important:
         # Use instance verbose setting if not explicitly provided
         if verbose is None:
             verbose = self.verbose
-        # Build conversation history
-        messages = [
-            {"role": "system", "content": self._get_system_prompt()},
-            {"role": "user", "content": f"Question: {question}"}
-        ]
+        # Build messages from history and new question
+        messages = self._build_messages(question)
 
         for iteration in range(self.max_iterations):
             # Get LLM response
@@ -195,6 +221,9 @@ Important:
             if final_answer:
                 if verbose:
                     print(f"\nFinal Answer: {final_answer}")
+                # Update conversation history
+                self.message_history.append({"role": "user", "content": f"Question: {question}"})
+                self.message_history.append({"role": "assistant", "content": final_answer})
                 return final_answer
 
             # Parse action
@@ -221,14 +250,20 @@ Important:
             # Handle Final Answer
             if action == "final_answer":
                 # The response should contain the answer
+                answer = None
                 if action_input and "raw_input" in action_input:
-                    return action_input["raw_input"]
+                    answer = action_input["raw_input"]
                 # Try to extract from response
-                answer = self._parse_answer(response)
-                if answer:
-                    return answer
-                # Last resort: use the last part of response
-                return response.split("Action Input:")[-1].strip()
+                elif self._parse_answer(response):
+                    answer = self._parse_answer(response)
+                else:
+                    # Last resort: use the last part of response
+                    answer = response.split("Action Input:")[-1].strip()
+
+                # Update conversation history
+                self.message_history.append({"role": "user", "content": f"Question: {question}"})
+                self.message_history.append({"role": "assistant", "content": answer})
+                return answer
 
             # Execute tool action
             if action in self.tools:

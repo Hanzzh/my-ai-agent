@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from src.agent.react import ReActAgent
 from src.llm.base import LLMProvider
-from src.mcp.loader import MCPLoader
+from src.tool.mcp.loader import MCPLoader
 
 
 # Mock LLM Provider for testing
@@ -348,3 +348,106 @@ Action Input: I encountered an error but here's my best answer."""
 
     # Verify agent handled the error
     assert "best answer" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_react_agent_history_initially_empty():
+    """Test that message history is initially empty."""
+    mcp_loader = Mock(spec=MCPLoader)
+    mcp_loader.load_all = AsyncMock()
+    mcp_loader.get_all_tools = Mock(return_value={})
+
+    agent = ReActAgent(llm=MockLLMProvider(), mcp_loader=mcp_loader)
+    await agent.initialize()
+
+    assert agent.message_history == []
+    assert agent.history_length == 0
+
+
+@pytest.mark.asyncio
+async def test_react_agent_history_updated_after_answer():
+    """Test that message history is updated after getting an answer."""
+    mcp_loader = Mock(spec=MCPLoader)
+    mcp_loader.load_all = AsyncMock()
+    mcp_loader.get_all_tools = Mock(return_value={})
+
+    llm = MockLLMProvider(responses=[
+        """Thought: I can answer directly.
+Action: Final Answer
+Action Input: The answer is 42."""
+    ])
+
+    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader)
+    await agent.initialize()
+
+    result = await agent.run("What is the answer?", verbose=False)
+
+    assert len(agent.message_history) == 2
+    assert agent.message_history[0]["role"] == "user"
+    assert "answer" in agent.message_history[0]["content"].lower()
+    assert agent.message_history[1]["role"] == "assistant"
+    assert "42" in agent.message_history[1]["content"]
+    assert agent.history_length == 1
+
+
+@pytest.mark.asyncio
+async def test_react_agent_clear_history():
+    """Test clearing conversation history."""
+    mcp_loader = Mock(spec=MCPLoader)
+    mcp_loader.load_all = AsyncMock()
+    mcp_loader.get_all_tools = Mock(return_value={})
+
+    llm = MockLLMProvider(responses=[
+        """Action: Final Answer
+Action Input: Answer 1""",
+        """Action: Final Answer
+Action Input: Answer 2"""
+    ])
+
+    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader)
+    await agent.initialize()
+
+    # First question
+    await agent.run("Question 1", verbose=False)
+    assert len(agent.message_history) == 2
+
+    # Clear history
+    agent.clear_history()
+    assert agent.message_history == []
+    assert agent.history_length == 0
+
+    # Second question starts fresh
+    await agent.run("Question 2", verbose=False)
+    assert len(agent.message_history) == 2
+
+
+@pytest.mark.asyncio
+async def test_react_agent_multi_turn_context():
+    """Test that multi-turn conversation maintains context in messages."""
+    mcp_loader = Mock(spec=MCPLoader)
+    mcp_loader.load_all = AsyncMock()
+    mcp_loader.get_all_tools = Mock(return_value={})
+
+    llm = MockLLMProvider(responses=[
+        """Action: Final Answer
+Action Input: Tokyo""",
+        """Action: Final Answer
+Action Input: The previous answer was Tokyo."""
+    ])
+
+    agent = ReActAgent(llm=llm, mcp_loader=mcp_loader)
+    await agent.initialize()
+
+    # First question
+    await agent.run("What is the capital of Japan?", verbose=False)
+
+    # Second question - verify history is included in messages
+    await agent.run("What was my previous question about?", verbose=False)
+
+    # Check that the second call included history
+    second_call_messages = llm.chat_history[1]
+    # Find the user message about Japan in history
+    history_found = any(
+        "Japan" in str(msg) for msg in second_call_messages
+    )
+    assert history_found, "History should include previous question about Japan"

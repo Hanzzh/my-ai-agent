@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 from ..llm.base import LLMProvider
-from ..mcp.loader import MCPLoader
+from ..tool.mcp.loader import MCPLoader
 
 
 class Agent(ABC):
@@ -18,6 +18,15 @@ class Agent(ABC):
     async def run(self, question: str, **kwargs) -> str:
         """Run the agent with a question."""
         pass
+
+    def clear_history(self) -> None:
+        """Clear conversation history. Optional, default does nothing."""
+        pass
+
+    @property
+    def history_length(self) -> int:
+        """Number of message exchanges in the conversation. Default returns 0."""
+        return 0
 
 
 class AgentFactory:

@@ -267,8 +267,8 @@ async def test_mcp_loader_initialization(temp_mcp_config_file):
     loader = MCPLoader(server_dicts)
 
     # Mock the subprocess creation to avoid actual subprocess
-    with patch('src.mcp.client.stdio_client') as mock_stdio_client, \
-         patch('src.mcp.client.ClientSession') as mock_session_class:
+    with patch('src.tool.mcp.client.stdio_client') as mock_stdio_client, \
+         patch('src.tool.mcp.client.ClientSession') as mock_session_class:
 
         mock_stdio_context = AsyncMock()
         mock_stdio_client.return_value = mock_stdio_context

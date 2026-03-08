@@ -8,7 +8,7 @@ from mcp.types import Tool
 @pytest.mark.asyncio
 async def test_mcp_loader_init():
     """Test MCP loader initializes with multiple server configs."""
-    from src.mcp.loader import MCPLoader
+    from src.tool.mcp.loader import MCPLoader
 
     server_configs = [
         {"command": "python", "args": ["server1.py"]},
@@ -26,8 +26,8 @@ async def test_mcp_loader_init():
 @pytest.mark.asyncio
 async def test_mcp_loader_load_all_and_get_tools():
     """Test MCP loader connects to all servers and collects tools."""
-    from src.mcp.loader import MCPLoader
-    from src.mcp.client import MCPClient
+    from src.tool.mcp.loader import MCPLoader
+    from src.tool.mcp.client import MCPClient
 
     server_configs = [
         {"command": "python", "args": ["server1.py"]},
@@ -35,7 +35,7 @@ async def test_mcp_loader_load_all_and_get_tools():
     ]
 
     # We'll mock at the create_mcp_session level since that's what the client uses now
-    with patch('src.mcp.client.create_mcp_session') as mock_create_session:
+    with patch('src.tool.mcp.client.create_mcp_session') as mock_create_session:
 
         # Setup mock to return different tools for each server
         mock_tools_server1 = [
@@ -87,8 +87,8 @@ async def test_mcp_loader_load_all_and_get_tools():
 @pytest.mark.asyncio
 async def test_mcp_loader_close_all():
     """Test MCP loader closes all connections."""
-    from src.mcp.loader import MCPLoader
-    from src.mcp.client import MCPClient
+    from src.tool.mcp.loader import MCPLoader
+    from src.tool.mcp.client import MCPClient
 
     server_configs = [
         {"command": "python", "args": ["server1.py"]},
