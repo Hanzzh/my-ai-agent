@@ -2,11 +2,13 @@
 
 import yaml
 from pathlib import Path
+from typing import List
+
 from .models import MCPServerConfig
 from .env_substitution import substitute_env_vars
 
 
-def load_mcp_configs_from_file(config_path: str) -> list:
+def load_mcp_configs_from_file(config_path: str) -> List[MCPServerConfig]:
     """
     Load MCP server configurations from a separate YAML file.
 
@@ -23,8 +25,12 @@ def load_mcp_configs_from_file(config_path: str) -> list:
     if not mcp_config_file.exists():
         raise FileNotFoundError(f"MCP config file not found: {config_path}")
 
-    with open(mcp_config_file, 'r') as f:
+    with open(mcp_config_file, 'r', encoding='utf-8') as f:
         raw_config = yaml.safe_load(f)
+
+    # Handle case where YAML file is empty or contains only null/None
+    if raw_config is None:
+        raw_config = {}
 
     mcp_servers = []
 

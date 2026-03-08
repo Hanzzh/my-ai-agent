@@ -54,3 +54,63 @@ def test_load_mcp_configs_empty_servers(tmp_path):
 
     configs = load_mcp_configs_from_file(str(config_file))
     assert configs == []
+
+
+def test_load_mcp_configs_with_env_vars(monkeypatch, tmp_path):
+    """Test environment variable substitution in MCP configs."""
+    monkeypatch.setenv("TEST_CMD", "python3")
+    monkeypatch.setenv("TEST_API_KEY", "secret123")
+
+    config_file = tmp_path / "env_mcp.yaml"
+    config_data = {
+        "servers": [
+            {
+                "name": "test-server",
+                "command": "${TEST_CMD}",
+                "args": ["server.py"],
+                "env": {
+                    "API_KEY": "${TEST_API_KEY}",
+                    "PORT": "8080"
+                }
+            }
+        ]
+    }
+    with open(config_file, 'w') as f:
+        yaml.dump(config_data, f)
+
+    configs = load_mcp_configs_from_file(str(config_file))
+
+    assert len(configs) == 1
+    assert configs[0].name == "test-server"
+    assert configs[0].command == "python3"
+    assert configs[0].env == {"API_KEY": "secret123", "PORT": "8080"}
+
+
+def test_load_mcp_configs_missing_required_field(tmp_path):
+    """Test handling of missing required 'name' or 'command' fields."""
+    config_file = tmp_path / "invalid_mcp.yaml"
+    config_data = {
+        "servers": [
+            {
+                "name": "incomplete-server",
+                # Missing 'command' field
+                "args": ["server.py"]
+            }
+        ]
+    }
+    with open(config_file, 'w') as f:
+        yaml.dump(config_data, f)
+
+    # Should raise KeyError when accessing missing 'command' field
+    with pytest.raises(KeyError, match="'command'"):
+        load_mcp_configs_from_file(str(config_file))
+
+
+def test_load_mcp_configs_none_yaml(tmp_path):
+    """Test handling of None/empty YAML file."""
+    config_file = tmp_path / "none_mcp.yaml"
+    with open(config_file, 'w') as f:
+        f.write("")  # Empty file, yaml.safe_load returns None
+
+    configs = load_mcp_configs_from_file(str(config_file))
+    assert configs == []
