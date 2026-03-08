@@ -61,8 +61,8 @@ A modular, production-ready ReAct (Reasoning + Acting) pattern AI agent that int
 
 ```bash
 # Set environment variables
-export GLM_API_KEY="your_api_key_here"
-export GLM_BASE_URL="https://open.bigmodel.cn/api/paas/v4/"
+export OPENAI_API_KEY="your_api_key_here"
+export OPENAI_BASE_URL="https://open.bigmodel.cn/api/paas/v4/"
 
 # Run with command line question
 python main.py "What's the weather in Shanghai?"
@@ -94,8 +94,8 @@ python main.py "Explain quantum computing"
 ```yaml
 # LLM Configuration
 llm:
-  api_key: "${GLM_API_KEY}"      # Use environment variables
-  base_url: "${GLM_BASE_URL}"
+  api_key: "${OPENAI_API_KEY}"      # Use environment variables
+  base_url: "${OPENAI_BASE_URL}"
   model: "glm-4-flash"
 
 # Agent Settings
@@ -126,8 +126,8 @@ servers:
 
 ```bash
 # LLM API Configuration
-GLM_API_KEY=your_glm_api_key
-GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
+OPENAI_API_KEY=your_glm_api_key
+OPENAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
 
 # Or for OpenAI
 OPENAI_API_KEY=your_openai_key

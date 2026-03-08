@@ -6,13 +6,13 @@ from src.config.llm_config import load_llm_config
 
 
 def test_load_llm_config_with_env_vars(monkeypatch):
-    monkeypatch.setenv("GLM_API_KEY", "test_key")
-    monkeypatch.setenv("GLM_BASE_URL", "https://api.test.com")
+    monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.test.com")
 
     raw_config = {
         "llm": {
-            "api_key": "${GLM_API_KEY}",
-            "base_url": "${GLM_BASE_URL}",
+            "api_key": "${OPENAI_API_KEY}",
+            "base_url": "${OPENAI_BASE_URL}",
             "model": "glm-4-flash"
         }
     }

@@ -1,7 +1,7 @@
 # LLM Configuration
 llm:
-  api_key: "${GLM_API_KEY}"
-  base_url: "${GLM_BASE_URL}"
+  api_key: "${OPENAI_API_KEY}"
+  base_url: "${OPENAI_BASE_URL}"
   model: "glm-4-flash"
 
 # Agent Settings

@@ -51,8 +51,8 @@ Configuration:
   - Copy .env.example to .env and set your API keys
 
 Environment Variables:
-  - GLM_API_KEY: Your API key for the LLM provider
-  - GLM_BASE_URL: Base URL for the LLM API
+  - OPENAI_API_KEY: Your API key for the LLM provider
+  - OPENAI_BASE_URL: Base URL for the LLM API
 
 For more information, see README.md
 """

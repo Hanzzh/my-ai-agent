@@ -10,15 +10,15 @@ from src.config.settings import load_config
 def temp_configs(tmp_path, monkeypatch):
     """Create temporary config files."""
     # Setup env vars
-    monkeypatch.setenv("GLM_API_KEY", "test_key")
-    monkeypatch.setenv("GLM_BASE_URL", "https://api.test.com")
+    monkeypatch.setenv("OPENAI_API_KEY", "test_key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.test.com")
 
     # Create main config
     main_config = tmp_path / "config.yaml"
     main_data = {
         "llm": {
-            "api_key": "${GLM_API_KEY}",
-            "base_url": "${GLM_BASE_URL}",
+            "api_key": "${OPENAI_API_KEY}",
+            "base_url": "${OPENAI_BASE_URL}",
             "model": "glm-4-flash"
         },
         "agent": {
@@ -61,14 +61,14 @@ def test_load_config_full(temp_configs):
 
 def test_load_config_defaults(tmp_path, monkeypatch):
     """Test default values when agent section is missing."""
-    monkeypatch.setenv("GLM_API_KEY", "key")
-    monkeypatch.setenv("GLM_BASE_URL", "https://url")
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://url")
 
     main_config = tmp_path / "config.yaml"
     main_data = {
         "llm": {
-            "api_key": "${GLM_API_KEY}",
-            "base_url": "${GLM_BASE_URL}",
+            "api_key": "${OPENAI_API_KEY}",
+            "base_url": "${OPENAI_BASE_URL}",
             "model": "model"
         },
         "mcp_config_file": "mcp.yaml"
