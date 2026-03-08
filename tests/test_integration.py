@@ -65,7 +65,7 @@ async def test_run_agent_full_flow(temp_config_file, temp_mcp_config_file):
     """Test full agent execution flow from config to response."""
     from src.app import run_agent
     from src.llm.base import LLMProvider
-    from src.tool.mcp import MCPLoader
+    from src.tool.registry import ToolRegistry
     from src.agent.react import ReActAgent
 
     # Mock the load_config to use our temp files
@@ -87,13 +87,14 @@ async def test_run_agent_full_flow(temp_config_file, temp_mcp_config_file):
             mock_llm.chat = Mock(return_value="Thought: Direct answer.\n\nAction: Final Answer\nAction Input: Test response")
             mock_llm_class.return_value = mock_llm
 
-            # Mock MCP loader
-            with patch('src.app.MCPLoader') as mock_mcp_class:
-                mock_mcp_loader = Mock(spec=MCPLoader)
-                mock_mcp_loader.load_all = AsyncMock()
-                mock_mcp_loader.get_all_tools = Mock(return_value={})
-                mock_mcp_loader.close_all = AsyncMock()
-                mock_mcp_class.return_value = mock_mcp_loader
+            # Mock ToolRegistry
+            with patch('src.app.ToolRegistry') as mock_registry_class:
+                mock_registry = Mock(spec=ToolRegistry)
+                mock_registry.load_all = AsyncMock()
+                mock_registry.get_tools = Mock(return_value=[])
+                mock_registry.close_all = AsyncMock()
+                mock_registry.add_source = Mock()
+                mock_registry_class.return_value = mock_registry
 
                 # Mock agent factory
                 with patch('src.app.AgentFactory') as mock_factory:
@@ -108,12 +109,12 @@ async def test_run_agent_full_flow(temp_config_file, temp_mcp_config_file):
                     # Verify the flow
                     mock_load_config.assert_called_once_with(temp_config_file)
                     mock_llm_class.assert_called_once()
-                    mock_mcp_class.assert_called_once_with([])
-                    mock_mcp_loader.load_all.assert_called_once()
+                    mock_registry_class.assert_called_once()
+                    mock_registry.load_all.assert_called_once()
                     mock_factory.create_agent.assert_called_once()
                     mock_agent.initialize.assert_called_once()
                     mock_agent.run.assert_called_once_with("Test question")
-                    mock_mcp_loader.close_all.assert_called_once()
+                    mock_registry.close_all.assert_called_once()
 
                     assert result == "Test response from agent"
 
@@ -136,7 +137,7 @@ async def test_run_agent_with_error_handling(temp_config_file):
 async def test_run_agent_cleanup_on_error(temp_config_file):
     """Test that cleanup happens even when agent execution fails."""
     from src.app import run_agent
-    from src.tool.mcp import MCPLoader
+    from src.tool.registry import ToolRegistry
 
     with patch('src.app.load_config') as mock_load_config:
         mock_config = Mock()
@@ -150,12 +151,13 @@ async def test_run_agent_cleanup_on_error(temp_config_file):
         mock_load_config.return_value = mock_config
 
         with patch('src.app.OpenAICompatibleProvider'):
-            with patch('src.app.MCPLoader') as mock_mcp_class:
-                mock_mcp_loader = Mock(spec=MCPLoader)
-                mock_mcp_loader.load_all = AsyncMock()
-                mock_mcp_loader.get_all_tools = Mock(return_value={})
-                mock_mcp_loader.close_all = AsyncMock()
-                mock_mcp_class.return_value = mock_mcp_loader
+            with patch('src.app.ToolRegistry') as mock_registry_class:
+                mock_registry = Mock(spec=ToolRegistry)
+                mock_registry.load_all = AsyncMock()
+                mock_registry.get_tools = Mock(return_value=[])
+                mock_registry.close_all = AsyncMock()
+                mock_registry.add_source = Mock()
+                mock_registry_class.return_value = mock_registry
 
                 with patch('src.app.AgentFactory') as mock_factory:
                     # Make agent.run raise an error
@@ -169,7 +171,7 @@ async def test_run_agent_cleanup_on_error(temp_config_file):
                         await run_agent("Test question", temp_config_file)
 
                     # Verify cleanup was still called
-                    mock_mcp_loader.close_all.assert_called_once()
+                    mock_registry.close_all.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -213,22 +215,22 @@ async def test_agent_factory_creates_correct_agent_type():
     """Test that AgentFactory creates the correct agent type."""
     from src.agent import AgentFactory
     from src.llm.base import LLMProvider
-    from src.tool.mcp import MCPLoader
+    from src.tool.registry import ToolRegistry
 
     mock_llm = Mock(spec=LLMProvider)
-    mock_mcp = Mock(spec=MCPLoader)
+    mock_registry = Mock(spec=ToolRegistry)
 
     # Test creating ReAct agent
     agent = AgentFactory.create_agent(
         agent_type="react",
         llm=mock_llm,
-        mcp_loader=mock_mcp,
+        tool_registry=mock_registry,
         max_iterations=10
     )
 
     assert agent.__class__.__name__ == "ReActAgent"
     assert agent.llm == mock_llm
-    assert agent.mcp_loader == mock_mcp
+    assert agent.tool_registry == mock_registry
     assert agent.max_iterations == 10
 
 
@@ -236,16 +238,16 @@ def test_agent_factory_invalid_type():
     """Test that AgentFactory raises error for invalid agent type."""
     from src.agent import AgentFactory
     from src.llm.base import LLMProvider
-    from src.tool.mcp import MCPLoader
+    from src.tool.registry import ToolRegistry
 
     mock_llm = Mock(spec=LLMProvider)
-    mock_mcp = Mock(spec=MCPLoader)
+    mock_registry = Mock(spec=ToolRegistry)
 
     with pytest.raises(ValueError, match="Unknown agent type"):
         AgentFactory.create_agent(
             agent_type="invalid_type",
             llm=mock_llm,
-            mcp_loader=mock_mcp
+            tool_registry=mock_registry
         )
 
 
@@ -318,7 +320,7 @@ async def test_react_agent_execution_flow():
     """Test complete ReAct agent execution with mock LLM and MCP."""
     from src.agent.react import ReActAgent
     from src.llm.base import LLMProvider
-    from src.tool.mcp import MCPLoader
+    from src.tool.registry import ToolRegistry
 
     # Create mock LLM
     class MockLLM(LLMProvider):
@@ -334,14 +336,14 @@ async def test_react_agent_execution_flow():
         def get_model_info(self):
             return {"name": "mock", "provider": "test"}
 
-    # Create mock MCP loader
-    mock_mcp = Mock(spec=MCPLoader)
-    mock_mcp.initialize = AsyncMock()
-    mock_mcp.get_all_tools = Mock(return_value={})
-    mock_mcp.cleanup = AsyncMock()
+    # Create mock ToolRegistry
+    mock_registry = Mock(spec=ToolRegistry)
+    mock_registry.load_all = AsyncMock()
+    mock_registry.get_tools = Mock(return_value=[])
+    mock_registry.close_all = AsyncMock()
 
     # Create and run agent
-    agent = ReActAgent(llm=MockLLM(), mcp_loader=mock_mcp, max_iterations=5)
+    agent = ReActAgent(llm=MockLLM(), tool_registry=mock_registry, max_iterations=5)
     await agent.initialize()
 
     result = await agent.run("What is the meaning of life?", verbose=False)
@@ -355,7 +357,7 @@ async def test_tool_calling_integration():
     """Test integration of tool calling through the full stack."""
     from src.agent.react import ReActAgent
     from src.llm.base import LLMProvider
-    from src.tool.mcp import MCPLoader
+    from src.tool.registry import ToolRegistry
 
     # Create mock LLM that uses a tool
     class ToolUsingLLM(LLMProvider):
@@ -374,29 +376,23 @@ async def test_tool_calling_integration():
         def get_model_info(self):
             return {"name": "mock", "provider": "test"}
 
-    # Create mock tool and client
-    mock_client = Mock()
-    mock_client.call_tool = AsyncMock(return_value="Tool result: success")
-
-    mock_tool = Mock()
-    mock_tool.name = "test_tool"
-    mock_tool.description = "A test tool"
-    mock_tool.inputSchema = {"type": "object", "properties": {"query": {"type": "string"}}}
-
-    # Create mock MCP loader with tool
-    mock_mcp = Mock(spec=MCPLoader)
-    mock_mcp.initialize = AsyncMock()
-    mock_mcp.get_all_tools = Mock(return_value={"test_tool": (mock_client, mock_tool)})
-    mock_mcp.cleanup = AsyncMock()
+    # Create mock ToolRegistry with tool
+    mock_registry = Mock(spec=ToolRegistry)
+    mock_registry.load_all = AsyncMock()
+    mock_registry.get_tools = Mock(return_value=[
+        {"name": "test_tool", "description": "A test tool", "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}}}
+    ])
+    mock_registry.execute_tool = AsyncMock(return_value="Tool result: success")
+    mock_registry.close_all = AsyncMock()
 
     # Create and run agent
-    agent = ReActAgent(llm=ToolUsingLLM(), mcp_loader=mock_mcp, max_iterations=5)
+    agent = ReActAgent(llm=ToolUsingLLM(), tool_registry=mock_registry, max_iterations=5)
     await agent.initialize()
 
     result = await agent.run("Use the test tool", verbose=False)
 
     # Verify tool was called
-    mock_client.call_tool.assert_called_once_with("test_tool", {"query": "test"})
+    mock_registry.execute_tool.assert_called_once_with("test_tool", {"query": "test"})
     assert "success" in result
 
 
