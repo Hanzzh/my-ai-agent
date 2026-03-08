@@ -73,15 +73,19 @@ def print_banner():
 def print_help():
     """Print help information."""
     help_text = """
-Usage: python main.py [question]
+Usage: python main.py [question] [options]
 
 Arguments:
   question    The question or task to process (optional)
 
+Options:
+  --debug     Enable debug mode with verbose output (logs, iterations)
+  -h, --help  Show this help message
+
 Examples:
   python main.py "What is the weather today?"
+  python main.py --debug "What is the weather today?"
   python main.py
-  echo "Your question here" | python main.py
 
 If no question is provided, you will be prompted to enter one.
 
