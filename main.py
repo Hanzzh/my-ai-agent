@@ -32,12 +32,18 @@ def parse_args():
     return parser.parse_args()
 
 
-# Configure logging
+# Configure logging - will be reconfigured after args parsing
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO,  # Temporary, will be updated
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def configure_logging(debug_mode: bool):
+    """Configure logging level based on debug mode."""
+    log_level = logging.DEBUG if debug_mode else logging.WARNING
+    logging.getLogger().setLevel(log_level)
 
 
 def print_banner():
@@ -82,8 +88,8 @@ For more information, see README.md
 async def main_async():
     """Async main function."""
     try:
-        # Parse command line arguments
         args = parse_args()
+        configure_logging(args.debug)
 
         # Get question from command line args or prompt
         if args.question is None:
