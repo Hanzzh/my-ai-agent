@@ -2,6 +2,7 @@
 
 import pytest
 from src.agent.factory import Agent, AgentFactory
+from src.agent.react import ReActAgent
 from src.llm.base import LLMProvider
 from src.mcp.loader import MCPLoader
 
@@ -55,7 +56,6 @@ def test_agent_factory_unknown_type():
         AgentFactory.create_agent("unknown", llm=llm, mcp_loader=mcp_loader)
 
 
-@pytest.mark.skip(reason="ReActAgent not implemented yet")
 def test_agent_factory_create_react():
     """Test that AgentFactory can create a ReAct agent."""
     llm = MockLLMProvider()
@@ -66,3 +66,4 @@ def test_agent_factory_create_react():
     assert agent is not None
     assert hasattr(agent, 'initialize')
     assert hasattr(agent, 'run')
+    assert isinstance(agent, ReActAgent)
