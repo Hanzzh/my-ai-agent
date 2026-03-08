@@ -14,7 +14,11 @@ from .agent import AgentFactory
 logger = logging.getLogger(__name__)
 
 
-async def run_agent(question: str, config_path: str = "config.yaml") -> str:
+async def run_agent(
+    question: str,
+    config_path: str = "config.yaml",
+    verbose: bool = False
+) -> str:
     """
     Run the agent with a given question.
 
@@ -29,6 +33,7 @@ async def run_agent(question: str, config_path: str = "config.yaml") -> str:
     Args:
         question: The question or task for the agent to process
         config_path: Path to the configuration file (default: "config.yaml")
+        verbose: Enable verbose logging for debugging (default: False)
 
     Returns:
         The agent's response as a string
@@ -66,7 +71,8 @@ async def run_agent(question: str, config_path: str = "config.yaml") -> str:
             agent_type=config.agent_type,
             llm=llm_provider,
             mcp_loader=mcp_loader,
-            max_iterations=config.max_iterations
+            max_iterations=config.max_iterations,
+            verbose=verbose
         )
 
         # Step 5: Initialize the agent
@@ -96,7 +102,8 @@ async def run_agent(question: str, config_path: str = "config.yaml") -> str:
 
 async def run_agent_batch(
     questions: list[str],
-    config_path: str = "config.yaml"
+    config_path: str = "config.yaml",
+    verbose: bool = False
 ) -> list[str]:
     """
     Run the agent with multiple questions sequentially.
@@ -104,6 +111,7 @@ async def run_agent_batch(
     Args:
         questions: List of questions to process
         config_path: Path to the configuration file
+        verbose: Enable verbose logging for debugging (default: False)
 
     Returns:
         List of responses corresponding to each question
@@ -111,7 +119,7 @@ async def run_agent_batch(
     results = []
     for i, question in enumerate(questions, 1):
         logger.info(f"Processing question {i}/{len(questions)}")
-        result = await run_agent(question, config_path)
+        result = await run_agent(question, config_path, verbose)
         results.append(result)
     return results
 
