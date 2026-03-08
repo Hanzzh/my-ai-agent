@@ -1,1 +1,6 @@
-"""MCP tools submodule - will be populated in Task 2."""
+"""MCP client and server integration (internal)."""
+
+from .client import MCPClient
+from .loader import MCPLoader
+
+__all__ = ['MCPClient', 'MCPLoader']
