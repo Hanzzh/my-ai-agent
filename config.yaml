@@ -1,0 +1,13 @@
+# LLM Configuration
+llm:
+  api_key: "${GLM_API_KEY}"
+  base_url: "${GLM_BASE_URL}"
+  model: "glm-4-flash"
+
+# Agent Settings
+agent:
+  type: "react"
+  max_iterations: 10
+
+# MCP Servers Configuration File
+mcp_config_file: "mcp_servers.yaml"

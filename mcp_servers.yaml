@@ -1,0 +1,14 @@
+# MCP Servers Configuration
+servers:
+  - name: weather
+    command: python
+    args:
+      - "/home/han/Project/ai-learning-script/tools/simple_mcp_server.py"
+
+  # Uncomment to enable filesystem MCP server
+  # - name: filesystem
+  #   command: npx
+  #   args:
+  #     - "-y"
+  #     - "@modelcontextprotocol/server-filesystem"
+  #     - "/home/han/Project"
