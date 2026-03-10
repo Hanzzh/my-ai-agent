@@ -54,14 +54,12 @@ class BashTool:
             **kwargs: Must contain 'command' key with the bash command to execute.
 
         Returns:
-            Command output as string.
-
-        Raises:
-            ValueError: If 'command' is not provided in kwargs.
+            Command output as string. Returns error message if command is missing
+            or execution fails.
         """
         command = kwargs.get("command")
         if command is None:
-            raise ValueError("Missing required argument: command")
+            return "Error: Missing required argument: command"
 
         is_allowed, error_msg = self._check_permission(command)
         if not is_allowed:

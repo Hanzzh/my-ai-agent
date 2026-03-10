@@ -77,3 +77,8 @@ async def test_bash_tool_never_raises_exception():
     # Even for invalid commands
     result2 = await tool.execute(command="nonexistent_command_xyz")
     assert isinstance(result2, str)
+
+    # Even for missing command argument
+    result3 = await tool.execute()
+    assert isinstance(result3, str)
+    assert "missing" in result3.lower()
