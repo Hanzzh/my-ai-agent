@@ -1,6 +1,6 @@
 """Embedded bash tool for command execution."""
 
-from typing import List, Any
+from typing import List, Any, Tuple
 
 
 class BashTool:
@@ -23,6 +23,29 @@ class BashTool:
         self.allowed_commands = allowed_commands
         self.forbidden_commands = forbidden_commands
 
+    def _parse_command_name(self, command: str) -> str:
+        """Extract command name from command string."""
+        return command.strip().split()[0] if command.strip() else ""
+
+    def _check_permission(self, command: str) -> Tuple[bool, str]:
+        """Check if command is allowed.
+
+        Returns:
+            Tuple of (is_allowed, error_message)
+        """
+        cmd_name = self._parse_command_name(command)
+
+        # Forbid takes precedence
+        if cmd_name in self.forbidden_commands:
+            return False, f"Error: Command '{cmd_name}' is forbidden."
+
+        # Check allowlist
+        if cmd_name not in self.allowed_commands:
+            allowed = ", ".join(self.allowed_commands) if self.allowed_commands else "none"
+            return False, f"Error: Command '{cmd_name}' is not allowed. Allowed commands: {allowed}"
+
+        return True, ""
+
     async def execute(self, **kwargs: Any) -> str:
         """Execute a bash command if allowed.
 
@@ -34,9 +57,14 @@ class BashTool:
 
         Raises:
             ValueError: If 'command' is not provided in kwargs.
-            NotImplementedError: Tool implementation not yet complete.
         """
         command = kwargs.get("command")
         if command is None:
             raise ValueError("Missing required argument: command")
-        raise NotImplementedError
+
+        is_allowed, error_msg = self._check_permission(command)
+        if not is_allowed:
+            return error_msg
+
+        # Actual execution in next task
+        return "Command allowed but execution not implemented"
