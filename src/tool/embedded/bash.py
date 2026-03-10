@@ -1,5 +1,6 @@
 """Embedded bash tool for command execution."""
 
+import asyncio
 from typing import List, Any, Tuple
 
 
@@ -66,5 +67,23 @@ class BashTool:
         if not is_allowed:
             return error_msg
 
-        # Actual execution in next task
-        return "Command allowed but execution not implemented"
+        try:
+            process = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+
+            # Combine stdout and stderr
+            output = stdout.decode("utf-8", errors="replace")
+            error = stderr.decode("utf-8", errors="replace")
+
+            result = output
+            if error:
+                result += error
+
+            return result.strip() if result.strip() else "(no output)"
+
+        except Exception as e:
+            return f"Error executing command: {str(e)}"
