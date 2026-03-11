@@ -61,11 +61,22 @@ class EmbeddedToolSource:
 
     def get_tools(self) -> List[ToolDescription]:
         """Return list of embedded tools."""
-        raise NotImplementedError
+        return [
+            ToolDescription(
+                name=tool.name,
+                description=tool.description,
+                inputSchema=tool.inputSchema
+            )
+            for tool in self._tools
+        ]
 
     async def execute(self, name: str, arguments: Dict[str, Any]) -> str:
         """Execute an embedded tool by name."""
-        raise NotImplementedError
+        for tool in self._tools:
+            if tool.name == name:
+                return await tool.execute(**arguments)
+
+        raise ValueError(f"Unknown tool: {name}. Available: {[t.name for t in self._tools]}")
 
     async def close(self) -> None:
         """No cleanup needed for embedded tools."""

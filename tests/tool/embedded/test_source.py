@@ -93,3 +93,51 @@ forbid:
         assert "Bash" not in source._allowed_commands  # Should extract just the command
     finally:
         os.unlink(temp_path)
+
+
+@pytest.mark.asyncio
+async def test_embedded_source_returns_tool_descriptions():
+    """EmbeddedToolSource should return ToolDescription list."""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write("allow:\n  - Bash(echo)\nforbid: []\n")
+        temp_path = f.name
+
+    try:
+        source = EmbeddedToolSource(temp_path)
+        await source.load()
+        tools = source.get_tools()
+
+        assert len(tools) == 1
+        assert isinstance(tools[0], dict)
+        assert tools[0]["name"] == "bash"
+        assert "description" in tools[0]
+        assert "inputSchema" in tools[0]
+    finally:
+        os.unlink(temp_path)
+
+
+@pytest.mark.asyncio
+async def test_embedded_source_executes_tool():
+    """EmbeddedToolSource should execute tools by name."""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write("allow:\n  - Bash(echo)\nforbid: []\n")
+        temp_path = f.name
+
+    try:
+        source = EmbeddedToolSource(temp_path)
+        await source.load()
+
+        result = await source.execute("bash", {"command": "echo test"})
+        assert "test" in result
+    finally:
+        os.unlink(temp_path)
+
+
+@pytest.mark.asyncio
+async def test_embedded_source_raises_for_unknown_tool():
+    """EmbeddedToolSource should raise for unknown tool name."""
+    source = EmbeddedToolSource()
+    await source.load()
+
+    with pytest.raises(ValueError, match="Unknown tool"):
+        await source.execute("unknown_tool", {})
