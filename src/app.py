@@ -8,8 +8,7 @@ from dataclasses import asdict
 
 from .config import load_config, AgentConfig
 from .llm import OpenAICompatibleProvider
-from .tool import ToolRegistry
-from .tool.mcp import MCPLoader
+from .tool import create_tool_registry
 from .agent import AgentFactory
 
 logger = logging.getLogger(__name__)
@@ -59,13 +58,11 @@ async def run_agent(
             model=config.llm.model
         )
 
-        # Step 3: Setup tool registry with MCP
+        # Step 3: Setup tool registry with all sources
         mcp_server_dicts = [asdict(server) for server in config.mcp_servers]
         logger.info(f"Loading {len(mcp_server_dicts)} MCP servers")
 
-        tool_registry = ToolRegistry()
-        mcp_loader = MCPLoader(mcp_server_dicts)
-        tool_registry.add_source(mcp_loader)
+        tool_registry = create_tool_registry(mcp_server_dicts)
         await tool_registry.load_all()
 
         # Step 4: Create agent via factory

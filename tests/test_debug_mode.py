@@ -77,7 +77,7 @@ async def test_run_agent_verbose_false():
 
     with patch('src.app.load_config') as mock_load_config, \
          patch('src.app.OpenAICompatibleProvider') as mock_llm, \
-         patch('src.app.ToolRegistry') as mock_registry:
+         patch('src.app.create_tool_registry') as mock_create_registry:
 
         # Setup mocks
         mock_config = MagicMock()
@@ -98,7 +98,7 @@ async def test_run_agent_verbose_false():
         mock_registry_instance.load_all = AsyncMock()
         mock_registry_instance.get_tools.return_value = []
         mock_registry_instance.close_all = AsyncMock()
-        mock_registry.return_value = mock_registry_instance
+        mock_create_registry.return_value = mock_registry_instance
 
         # Run with verbose=False
         result = await run_agent("test", verbose=False)
@@ -114,7 +114,7 @@ async def test_run_agent_verbose_true():
 
     with patch('src.app.load_config') as mock_load_config, \
          patch('src.app.OpenAICompatibleProvider') as mock_llm, \
-         patch('src.app.ToolRegistry') as mock_registry:
+         patch('src.app.create_tool_registry') as mock_create_registry:
 
         # Setup mocks
         mock_config = MagicMock()
@@ -135,7 +135,7 @@ async def test_run_agent_verbose_true():
         mock_registry_instance.load_all = AsyncMock()
         mock_registry_instance.get_tools.return_value = []
         mock_registry_instance.close_all = AsyncMock()
-        mock_registry.return_value = mock_registry_instance
+        mock_create_registry.return_value = mock_registry_instance
 
         # Run with verbose=True
         result = await run_agent("test", verbose=True)
