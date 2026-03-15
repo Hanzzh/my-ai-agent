@@ -6,7 +6,7 @@ from typing import Optional
 
 from ..config import load_config, AgentConfig
 from ..llm import OpenAICompatibleProvider
-from ..tool.mcp.loader import MCPLoader
+from ..tool import create_tool_registry
 from ..agent import AgentFactory
 
 logger = logging.getLogger(__name__)
@@ -16,14 +16,14 @@ class Session:
     """
     Manages a conversation session with persistent resources and history.
 
-    The session owns all resources (LLM provider, MCP connections, agent)
+    The session owns all resources (LLM provider, tool registry, agent)
     for its lifetime and maintains conversation history across turns.
     """
 
     def __init__(
         self,
         llm_provider: OpenAICompatibleProvider,
-        mcp_loader: MCPLoader,
+        tool_registry,
         agent,
         config: AgentConfig
     ):
@@ -32,12 +32,12 @@ class Session:
 
         Args:
             llm_provider: LLM provider instance
-            mcp_loader: MCP loader with servers loaded
+            tool_registry: Tool registry with all tools loaded
             agent: Initialized agent instance
             config: Agent configuration
         """
         self._llm_provider = llm_provider
-        self._mcp_loader = mcp_loader
+        self._tool_registry = tool_registry
         self._agent = agent
         self._config = config
         self._closed = False
@@ -76,15 +76,17 @@ class Session:
         # Load MCP servers
         mcp_server_dicts = [asdict(server) for server in config.mcp_servers]
         logger.info(f"Loading {len(mcp_server_dicts)} MCP servers")
-        mcp_loader = MCPLoader(mcp_server_dicts)
-        await mcp_loader.load_all()
+
+        # Setup tool registry with all sources
+        tool_registry = create_tool_registry(mcp_server_dicts)
+        await tool_registry.load_all()
 
         # Create agent
         logger.info(f"Creating {config.agent_type} agent")
         agent = AgentFactory.create_agent(
             agent_type=config.agent_type,
             llm=llm_provider,
-            mcp_loader=mcp_loader,
+            tool_registry=tool_registry,
             max_iterations=config.max_iterations,
             verbose=verbose
         )
@@ -93,7 +95,7 @@ class Session:
         logger.info("Initializing agent")
         await agent.initialize()
 
-        return cls(llm_provider, mcp_loader, agent, config)
+        return cls(llm_provider, tool_registry, agent, config)
 
     async def ask(self, question: str) -> str:
         """
@@ -128,11 +130,11 @@ class Session:
         logger.info("Closing session")
         self._closed = True
 
-        if self._mcp_loader:
+        if self._tool_registry:
             try:
-                await self._mcp_loader.close_all()
+                await self._tool_registry.close_all()
             except Exception as e:
-                logger.warning(f"Error during MCP cleanup: {e}")
+                logger.warning(f"Error during tool cleanup: {e}")
 
         logger.info("Session closed")
 

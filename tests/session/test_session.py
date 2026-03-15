@@ -31,13 +31,14 @@ def mock_llm_provider():
 
 
 @pytest.fixture
-def mock_mcp_loader():
-    """Create a mock MCP loader."""
-    loader = Mock()
-    loader.load_all = AsyncMock()
-    loader.close_all = AsyncMock()
-    loader.get_all_tools = Mock(return_value={})
-    return loader
+def mock_tool_registry():
+    """Create a mock tool registry."""
+    registry = Mock()
+    registry.load_all = AsyncMock()
+    registry.close_all = AsyncMock()
+    registry.get_tools = Mock(return_value=[])
+    registry.get_tool_names = Mock(return_value=[])
+    return registry
 
 
 @pytest.fixture
@@ -56,16 +57,16 @@ async def test_session_create(mock_config, mock_agent):
     """Test session creation with mocked dependencies."""
     with patch('src.session.session.load_config') as mock_load_config, \
          patch('src.session.session.OpenAICompatibleProvider') as mock_llm_class, \
-         patch('src.session.session.MCPLoader') as mock_mcp_class, \
+         patch('src.session.session.create_tool_registry') as mock_create_registry, \
          patch('src.session.session.AgentFactory') as mock_factory:
 
         mock_load_config.return_value = mock_config
         mock_llm_class.return_value = Mock()
-        mock_mcp_instance = Mock()
-        mock_mcp_instance.load_all = AsyncMock()
-        mock_mcp_instance.close_all = AsyncMock()
-        mock_mcp_instance.get_all_tools = Mock(return_value={})
-        mock_mcp_class.return_value = mock_mcp_instance
+        mock_registry_instance = Mock()
+        mock_registry_instance.load_all = AsyncMock()
+        mock_registry_instance.close_all = AsyncMock()
+        mock_registry_instance.get_tools = Mock(return_value=[])
+        mock_create_registry.return_value = mock_registry_instance
         mock_factory.create_agent.return_value = mock_agent
 
         session = await Session.create(config_path="test.yaml", verbose=False)
@@ -76,11 +77,11 @@ async def test_session_create(mock_config, mock_agent):
 
 
 @pytest.mark.asyncio
-async def test_session_ask(mock_llm_provider, mock_mcp_loader, mock_agent, mock_config):
+async def test_session_ask(mock_llm_provider, mock_tool_registry, mock_agent, mock_config):
     """Test asking a question through session."""
     session = Session(
         llm_provider=mock_llm_provider,
-        mcp_loader=mock_mcp_loader,
+        tool_registry=mock_tool_registry,
         agent=mock_agent,
         config=mock_config
     )
@@ -92,14 +93,14 @@ async def test_session_ask(mock_llm_provider, mock_mcp_loader, mock_agent, mock_
 
 
 @pytest.mark.asyncio
-async def test_session_ask_multi_turn(mock_llm_provider, mock_mcp_loader, mock_agent, mock_config):
+async def test_session_ask_multi_turn(mock_llm_provider, mock_tool_registry, mock_agent, mock_config):
     """Test multi-turn conversation through session."""
     mock_agent.run = AsyncMock(side_effect=["Answer 1", "Answer 2"])
     mock_agent.history_length = 0
 
     session = Session(
         llm_provider=mock_llm_provider,
-        mcp_loader=mock_mcp_loader,
+        tool_registry=mock_tool_registry,
         agent=mock_agent,
         config=mock_config
     )
@@ -113,27 +114,27 @@ async def test_session_ask_multi_turn(mock_llm_provider, mock_mcp_loader, mock_a
 
 
 @pytest.mark.asyncio
-async def test_session_close(mock_llm_provider, mock_mcp_loader, mock_agent, mock_config):
+async def test_session_close(mock_llm_provider, mock_tool_registry, mock_agent, mock_config):
     """Test closing session releases resources."""
     session = Session(
         llm_provider=mock_llm_provider,
-        mcp_loader=mock_mcp_loader,
+        tool_registry=mock_tool_registry,
         agent=mock_agent,
         config=mock_config
     )
 
     await session.close()
 
-    mock_mcp_loader.close_all.assert_called_once()
+    mock_tool_registry.close_all.assert_called_once()
     assert session._closed is True
 
 
 @pytest.mark.asyncio
-async def test_session_close_idempotent(mock_llm_provider, mock_mcp_loader, mock_agent, mock_config):
+async def test_session_close_idempotent(mock_llm_provider, mock_tool_registry, mock_agent, mock_config):
     """Test that close() is idempotent."""
     session = Session(
         llm_provider=mock_llm_provider,
-        mcp_loader=mock_mcp_loader,
+        tool_registry=mock_tool_registry,
         agent=mock_agent,
         config=mock_config
     )
@@ -141,15 +142,15 @@ async def test_session_close_idempotent(mock_llm_provider, mock_mcp_loader, mock
     await session.close()
     await session.close()  # Second call should be no-op
 
-    mock_mcp_loader.close_all.assert_called_once()
+    mock_tool_registry.close_all.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_session_ask_after_close_raises(mock_llm_provider, mock_mcp_loader, mock_agent, mock_config):
+async def test_session_ask_after_close_raises(mock_llm_provider, mock_tool_registry, mock_agent, mock_config):
     """Test that ask() after close raises RuntimeError."""
     session = Session(
         llm_provider=mock_llm_provider,
-        mcp_loader=mock_mcp_loader,
+        tool_registry=mock_tool_registry,
         agent=mock_agent,
         config=mock_config
     )
@@ -161,11 +162,11 @@ async def test_session_ask_after_close_raises(mock_llm_provider, mock_mcp_loader
 
 
 @pytest.mark.asyncio
-async def test_session_clear_history(mock_llm_provider, mock_mcp_loader, mock_agent, mock_config):
+async def test_session_clear_history(mock_llm_provider, mock_tool_registry, mock_agent, mock_config):
     """Test clearing history through session."""
     session = Session(
         llm_provider=mock_llm_provider,
-        mcp_loader=mock_mcp_loader,
+        tool_registry=mock_tool_registry,
         agent=mock_agent,
         config=mock_config
     )
@@ -176,13 +177,13 @@ async def test_session_clear_history(mock_llm_provider, mock_mcp_loader, mock_ag
 
 
 @pytest.mark.asyncio
-async def test_session_history_length(mock_llm_provider, mock_mcp_loader, mock_agent, mock_config):
+async def test_session_history_length(mock_llm_provider, mock_tool_registry, mock_agent, mock_config):
     """Test history_length property."""
     mock_agent.history_length = 3
 
     session = Session(
         llm_provider=mock_llm_provider,
-        mcp_loader=mock_mcp_loader,
+        tool_registry=mock_tool_registry,
         agent=mock_agent,
         config=mock_config
     )
@@ -191,25 +192,25 @@ async def test_session_history_length(mock_llm_provider, mock_mcp_loader, mock_a
 
 
 @pytest.mark.asyncio
-async def test_session_context_manager(mock_llm_provider, mock_mcp_loader, mock_agent, mock_config):
+async def test_session_context_manager(mock_llm_provider, mock_tool_registry, mock_agent, mock_config):
     """Test async context manager usage."""
     async with Session(
         llm_provider=mock_llm_provider,
-        mcp_loader=mock_mcp_loader,
+        tool_registry=mock_tool_registry,
         agent=mock_agent,
         config=mock_config
     ) as session:
         await session.ask("Test question")
 
-    mock_mcp_loader.close_all.assert_called_once()
+    mock_tool_registry.close_all.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_session_clear_history_after_close_raises(mock_llm_provider, mock_mcp_loader, mock_agent, mock_config):
+async def test_session_clear_history_after_close_raises(mock_llm_provider, mock_tool_registry, mock_agent, mock_config):
     """Test that clear_history() after close raises RuntimeError."""
     session = Session(
         llm_provider=mock_llm_provider,
-        mcp_loader=mock_mcp_loader,
+        tool_registry=mock_tool_registry,
         agent=mock_agent,
         config=mock_config
     )

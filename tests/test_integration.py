@@ -87,14 +87,13 @@ async def test_run_agent_full_flow(temp_config_file, temp_mcp_config_file):
             mock_llm.chat = Mock(return_value="Thought: Direct answer.\n\nAction: Final Answer\nAction Input: Test response")
             mock_llm_class.return_value = mock_llm
 
-            # Mock ToolRegistry
-            with patch('src.app.ToolRegistry') as mock_registry_class:
+            # Mock create_tool_registry
+            with patch('src.app.create_tool_registry') as mock_create_registry:
                 mock_registry = Mock(spec=ToolRegistry)
                 mock_registry.load_all = AsyncMock()
                 mock_registry.get_tools = Mock(return_value=[])
                 mock_registry.close_all = AsyncMock()
-                mock_registry.add_source = Mock()
-                mock_registry_class.return_value = mock_registry
+                mock_create_registry.return_value = mock_registry
 
                 # Mock agent factory
                 with patch('src.app.AgentFactory') as mock_factory:
@@ -109,7 +108,7 @@ async def test_run_agent_full_flow(temp_config_file, temp_mcp_config_file):
                     # Verify the flow
                     mock_load_config.assert_called_once_with(temp_config_file)
                     mock_llm_class.assert_called_once()
-                    mock_registry_class.assert_called_once()
+                    mock_create_registry.assert_called_once()
                     mock_registry.load_all.assert_called_once()
                     mock_factory.create_agent.assert_called_once()
                     mock_agent.initialize.assert_called_once()
@@ -151,13 +150,12 @@ async def test_run_agent_cleanup_on_error(temp_config_file):
         mock_load_config.return_value = mock_config
 
         with patch('src.app.OpenAICompatibleProvider'):
-            with patch('src.app.ToolRegistry') as mock_registry_class:
+            with patch('src.app.create_tool_registry') as mock_create_registry:
                 mock_registry = Mock(spec=ToolRegistry)
                 mock_registry.load_all = AsyncMock()
                 mock_registry.get_tools = Mock(return_value=[])
                 mock_registry.close_all = AsyncMock()
-                mock_registry.add_source = Mock()
-                mock_registry_class.return_value = mock_registry
+                mock_create_registry.return_value = mock_registry
 
                 with patch('src.app.AgentFactory') as mock_factory:
                     # Make agent.run raise an error
@@ -461,7 +459,7 @@ async def test_multi_turn_conversation():
 
     with patch('src.session.session.load_config') as mock_load_config, \
          patch('src.session.session.OpenAICompatibleProvider') as mock_llm_class, \
-         patch('src.session.session.MCPLoader') as mock_mcp_class, \
+         patch('src.session.session.create_tool_registry') as mock_create_registry, \
          patch('src.session.session.AgentFactory') as mock_factory:
 
         # Setup mocks
@@ -477,11 +475,11 @@ async def test_multi_turn_conversation():
         mock_llm = ContextAwareLLM()
         mock_llm_class.return_value = mock_llm
 
-        mock_mcp_instance = Mock()
-        mock_mcp_instance.load_all = AsyncMock()
-        mock_mcp_instance.close_all = AsyncMock()
-        mock_mcp_instance.get_all_tools = Mock(return_value={})
-        mock_mcp_class.return_value = mock_mcp_instance
+        mock_registry_instance = Mock()
+        mock_registry_instance.load_all = AsyncMock()
+        mock_registry_instance.close_all = AsyncMock()
+        mock_registry_instance.get_tools = Mock(return_value=[])
+        mock_create_registry.return_value = mock_registry_instance
 
         mock_agent = Mock()
         mock_agent.initialize = AsyncMock()
@@ -514,7 +512,7 @@ async def test_session_mcp_persistence():
 
     with patch('src.session.session.load_config') as mock_load_config, \
          patch('src.session.session.OpenAICompatibleProvider') as mock_llm_class, \
-         patch('src.session.session.MCPLoader') as mock_mcp_class, \
+         patch('src.session.session.create_tool_registry') as mock_create_registry, \
          patch('src.session.session.AgentFactory') as mock_factory:
 
         # Setup mocks
@@ -529,11 +527,11 @@ async def test_session_mcp_persistence():
 
         mock_llm_class.return_value = Mock()
 
-        mock_mcp_instance = Mock()
-        mock_mcp_instance.load_all = AsyncMock()
-        mock_mcp_instance.close_all = AsyncMock()
-        mock_mcp_instance.get_all_tools = Mock(return_value={})
-        mock_mcp_class.return_value = mock_mcp_instance
+        mock_registry_instance = Mock()
+        mock_registry_instance.load_all = AsyncMock()
+        mock_registry_instance.close_all = AsyncMock()
+        mock_registry_instance.get_tools = Mock(return_value=[])
+        mock_create_registry.return_value = mock_registry_instance
 
         mock_agent = Mock()
         mock_agent.initialize = AsyncMock()
@@ -545,22 +543,22 @@ async def test_session_mcp_persistence():
         # Create session
         session = await Session.create(config_path="test.yaml")
 
-        # MCP should be loaded once at session creation
-        assert mock_mcp_instance.load_all.call_count == 1
+        # Tool registry should be loaded once at session creation
+        assert mock_registry_instance.load_all.call_count == 1
 
         # Multiple turns
         await session.ask("Question 1")
         await session.ask("Question 2")
         await session.ask("Question 3")
 
-        # MCP should still only be loaded once (persisting)
-        assert mock_mcp_instance.load_all.call_count == 1
+        # Tool registry should still only be loaded once (persisting)
+        assert mock_registry_instance.load_all.call_count == 1
 
         # Close session
         await session.close()
 
-        # MCP should be closed once
-        assert mock_mcp_instance.close_all.call_count == 1
+        # Tool registry should be closed once
+        assert mock_registry_instance.close_all.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -570,7 +568,7 @@ async def test_session_clear_history_in_integration():
 
     with patch('src.session.session.load_config') as mock_load_config, \
          patch('src.session.session.OpenAICompatibleProvider') as mock_llm_class, \
-         patch('src.session.session.MCPLoader') as mock_mcp_class, \
+         patch('src.session.session.create_tool_registry') as mock_create_registry, \
          patch('src.session.session.AgentFactory') as mock_factory:
 
         # Setup mocks
@@ -585,11 +583,11 @@ async def test_session_clear_history_in_integration():
 
         mock_llm_class.return_value = Mock()
 
-        mock_mcp_instance = Mock()
-        mock_mcp_instance.load_all = AsyncMock()
-        mock_mcp_instance.close_all = AsyncMock()
-        mock_mcp_instance.get_all_tools = Mock(return_value={})
-        mock_mcp_class.return_value = mock_mcp_instance
+        mock_registry_instance = Mock()
+        mock_registry_instance.load_all = AsyncMock()
+        mock_registry_instance.close_all = AsyncMock()
+        mock_registry_instance.get_tools = Mock(return_value=[])
+        mock_create_registry.return_value = mock_registry_instance
 
         mock_agent = Mock()
         mock_agent.initialize = AsyncMock()

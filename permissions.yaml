@@ -10,5 +10,21 @@
 #
 # By default, no commands are allowed
 
-allow: []
-forbid: []
+allow:
+  - Bash(ls)
+  - Bash(pwd)
+  - Bash(cat)
+  - Bash(head)
+  - Bash(tail)
+  - Bash(find)
+  - Bash(grep)
+  - Bash(mkdir)
+  - Bash(touch)
+  - Bash(cp)
+  - Bash(mv)
+  - Bash(echo)
+  - Bash(tree)
+  - Bash(which)
+  - Bash(whoami)
+forbid:
+  - Bash(rm)
