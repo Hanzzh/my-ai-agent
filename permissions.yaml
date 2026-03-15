@@ -1,0 +1,14 @@
+# permissions.yaml
+# Configure which embedded tool commands are allowed
+#
+# Format:
+#   allow:
+#     - Bash(ls)      # Allow ls command
+#     - Bash(cat)     # Allow cat command
+#   forbid:
+#     - Bash(rm)      # Forbid rm command (takes precedence over allow)
+#
+# By default, no commands are allowed
+
+allow: []
+forbid: []
